@@ -9,8 +9,8 @@ Phase 1 — Foundation (Sprint 1-2)
 - [x] Project coordination files created (CONTRIBUTING, TASKS, PROGRESS, CLAUDE)
 
 ## In Progress
-- [ ] Phase 1: DB schema design (Teammate A)
-- [ ] Phase 1: Backend project setup (Teammate A)
+- [x] Phase 1: DB schema design (Teammate A) — done
+- [x] Phase 1: Backend project setup (Teammate A) — done
 - [ ] Phase 1: Frontend project setup + wireframes (Teammate B, C)
 
 ## Next Tasks

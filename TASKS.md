@@ -9,9 +9,9 @@ Status: `todo` | `in-progress` | `done`
 
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
-| Design DB schema (users, courses, tasks, notes)    | Teammate A | todo   |
-| Set up PostgreSQL + backend project structure      | Teammate A | todo   |
-| Implement user auth (register/login + JWT)         | Teammate A | todo   |
+| Design DB schema (users, courses, tasks, notes)    | Teammate A | done   |
+| Set up PostgreSQL + backend project structure      | Teammate A | done   |
+| Implement user auth (register/login + JWT)         | Teammate A | done   |
 | Set up Next.js + Tailwind project structure        | Teammate B | todo   |
 | Create wireframes for Dashboard layout             | Teammate B | todo   |
 | Create wireframes for Tasks and Notes views        | Teammate C | todo   |
