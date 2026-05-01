@@ -1,29 +1,33 @@
 # Synapsis — Progress Tracker
 
 ## Current Phase
-Phase 1 — Foundation (Sprint 1-2)
+Phase 2 — Dashboard Frontend (Sprint 3)
 
 ## Completed
-- [x] SOW reviewed and approved
-- [x] README.md written by teammate
-- [x] Project coordination files created (CONTRIBUTING, TASKS, PROGRESS, CLAUDE)
+- [x] Phase 1 Foundation (DB schema, backend setup, project files)
+- [x] Frontend Next.js setup (app dir at root)
+- [x] Modern dashboard page.tsx (glassmorphism cards, SVG icons, gradients, hovers, animations)
+- [x] Tasks page.tsx fixed syntax & modernized (add form, task list, badges)
+- [x] Tailwind CSS configured (content paths, postcss)
+- [x] TSConfig/ESLint fixes (jsx react-jsx)
+- [x] Dev server running (localhost:3000, webpack Next 14)
 
 ## In Progress
-- [x] Phase 1: DB schema design (Teammate A) — done
-- [x] Phase 1: Backend project setup (Teammate A) — done
-- [ ] Phase 1: Frontend project setup + wireframes (Teammate B, C)
+- Backend API development
 
-## Next Tasks
-- Teammate A: Design DB schema, set up PostgreSQL, implement auth
-- Teammate B: Set up Next.js + Tailwind, create dashboard wireframes
-- Teammate C: Create wireframes for Tasks and Notes views
+## Next Tasks (Phase 2)
+- [ ] Complete notes/calendar pages (similar modern UI)
+- [ ] Backend models/API endpoints (tasks, notes, courses, schedule)
+- [ ] Frontend data fetching (useSWR/fetch, dynamic content)
+- [ ] Authentication (NextAuth/JWT)
+- [ ] Mobile responsiveness polish
 
 ## Blockers
 None
 
 ## Notes for Next Session
-- Stack confirmed: Next.js + Tailwind (frontend), Node.js/Express (backend), PostgreSQL
-- Auth: JWT or NextAuth — to be decided by Teammate A in Phase 1
-- AI assistant is post-MVP only — do not add to any Phase 1-4 work
-- See TASKS.md for full ownership breakdown before starting any task
-- See CONTRIBUTING.md for branch naming and PR rules before first commit
+- Frontend ready for backend integration.
+- Stack: Next.js/Tailwind frontend, Express/PostgreSQL backend.
+- See TASKS.md for ownership.
+- CONTRIBUTING.md for git workflow.
+- AI for code gen only, no MVP features.
