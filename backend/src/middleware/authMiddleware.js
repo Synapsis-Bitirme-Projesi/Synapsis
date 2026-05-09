@@ -16,6 +16,7 @@ const protect = (req, res, next) => {
     req.user = decoded; // { userId, email }
     next();
   } catch (err) {
+    console.error("JWT Doğrulama Hatası:", err.message); // Hatanın nedenini terminale yazar
     res.status(401).json({ message: 'Invalid or expired token.' });
   }
 };
