@@ -33,7 +33,11 @@ export default function Home() {
   useEffect(() => {
     const fetchSettings = async () => {
       const token = (session as any)?.user?.accessToken || (session as any)?.accessToken;
-      if (!token) return;
+      if (!token) {
+        setActiveWidgets(['classes', 'exams', 'tasks']);
+        setIsDataLoaded(true);
+        return;
+      }
 
       try {
         const response = await fetch("http://127.0.0.1:5000/api/auth/me", {
@@ -50,6 +54,7 @@ export default function Home() {
       } catch (error) {
         console.error("Ayarlar çekilemedi:", error);
         setActiveWidgets(['classes', 'exams', 'tasks']);
+        setIsDataLoaded(true);
       }
     };
 
