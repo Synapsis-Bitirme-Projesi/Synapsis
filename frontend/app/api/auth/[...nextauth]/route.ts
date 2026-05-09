@@ -59,25 +59,26 @@ const handler = NextAuth({
         }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger, session }) {
             if (user) {
-                token.user = user;
+                token.id = user.id;
+                // Backend'den 'full_name' geliyorsa onu 'name' içine zorla koyuyoruz
+                token.name = (user as any).full_name || user.name;
+            }
+            // Update tetiklendiğinde ismi güncelle
+            if (trigger === "update" && session?.name) {
+                token.name = session.name;
             }
             return token;
         },
-        async session({ session, token }: any) {
-            if (token.user) {
-                session.user = token.user;
+        async session({ session, token }) {
+            if (session.user) {
+                (session.user as any).id = token.id;
+                // Session'daki name'in boş kalmamasını sağlıyoruz
+                session.user.name = token.name as string;
             }
             return session;
-        },
-    },
-    pages: {
-        signIn: "/login",
-    },
-    session: {
-        strategy: "jwt",
-        maxAge: 7 * 24 * 60 * 60,
+        }
     },
     secret: process.env.NEXTAUTH_SECRET,
 });

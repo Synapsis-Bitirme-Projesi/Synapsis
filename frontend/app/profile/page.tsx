@@ -1,140 +1,90 @@
 "use client";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
-import { User, Mail, Save, X, Edit3 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { LayoutDashboard, CheckCircle, AlertCircle } from "lucide-react";
 
-export default function ProfilePage() {
-    const { data: session, update } = useSession();
-    console.log("NextAuth Session Verisi:", session?.user);
-    const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ name: "", email: "" });
+export default function Dashboard() {
+    const { data: session, status } = useSession();
+    const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0 });
 
-    // 1. ADIM: Veriyi yakalarken daha esnek davranıyoruz
-    useEffect(() => {
-        if (session?.user) {
-            // NextAuth bazen ismi 'name' yerine 'full_name' içinde tutuyor olabilir
-            const currentName = session.user.name || (session.user as any).full_name || "";
-
-            if (!isEditing) {
-                setFormData({
-                    name: currentName,
-                    email: session.user.email || ""
-                });
-            }
-        }
-    }, [session, isEditing]);
-
-    const handleSave = async () => {
+    // API çağrısını dışarı aldık ki useEffect içinde karmaşa yaratmasın
+    const fetchStats = useCallback(async () => {
         const token = (session as any)?.accessToken || (session as any)?.user?.accessToken;
-
-        if (!token) {
-            alert("Oturum süreniz dolmuş.");
-            return;
-        }
+        if (!token) return;
 
         try {
-            const res = await fetch("http://127.0.0.1:5000/api/auth/update-profile", {
-                method: "PUT",
+            const res = await fetch("http://127.0.0.1:5000/api/tasks/stats", {
+                method: "GET",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    full_name: formData.name,
-                    email: formData.email
-                })
+                }
             });
 
             if (res.ok) {
-                // 2. ADIM: Modu kapat ve state'i koru
-                setIsEditing(false);
-
-                // 3. ADIM: Session'ı manuel zorlayarak güncelle
-                await update({
-                    ...session,
-                    user: {
-                        ...session?.user,
-                        name: formData.name,
-                        email: formData.email
-                    }
+                const data = await res.json();
+                setStats({
+                    total: data.total || 0,
+                    completed: data.completed || 0,
+                    pending: data.pending || 0
                 });
             }
         } catch (error) {
-            alert("Hata oluştu.");
+            console.error("Dashboard verisi çekilirken hata oluştu:", error);
         }
-    };
+    }, [session]);
+
+    useEffect(() => {
+        if (status === "authenticated") {
+            fetchStats();
+        }
+    }, [status, fetchStats]);
+
+    // KRİTİK: Eğer profil sayfası açılıyor ama burası dönüyorsa 
+    // buradaki null dönüşü Layout'taki spinner ile çakışıyor olabilir.
+    // status "loading" olsa bile ana iskeleti render ederek kilitlenmeyi kırıyoruz.
+    if (status === "loading") return null;
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            {/* Üst başlık kısmı aynı */}
-            <div className="flex justify-between items-end mb-8">
-                <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight">Profilim</h1>
+        <div className="p-8 max-w-7xl mx-auto min-h-screen">
+            <header className="mb-10">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+                    Hoş geldin, {session?.user?.name || "Tolga"} 👋
+                </h1>
+                <p className="text-slate-500 font-medium mt-2">İşlerin her zamanki gibi kontrol altında.</p>
+            </header>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Toplam Görev */}
+                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
+                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                        <LayoutDashboard size={28} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Toplam Görev</p>
+                        <p className="text-3xl font-black text-slate-900">{stats.total}</p>
+                    </div>
                 </div>
-                {!isEditing ? (
-                    <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all">
-                        <Edit3 size={18} /> Düzenle
-                    </button>
-                ) : (
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsEditing(false)} className="flex items-center gap-2 px-6 py-3 bg-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-300">
-                            <X size={18} /> İptal
-                        </button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-bold rounded-2xl hover:bg-green-700 shadow-lg">
-                            <Save size={18} /> Kaydet
-                        </button>
+
+                {/* Tamamlanan */}
+                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
+                    <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
+                        <CheckCircle size={28} />
                     </div>
-                )}
-            </div>
-
-            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="h-32 bg-gradient-to-r from-blue-600 to-purple-600"></div>
-                <div className="px-10 pb-10">
-                    <div className="relative -top-12 flex items-end gap-6">
-                        <div className="w-24 h-24 bg-white rounded-3xl p-1 shadow-lg flex items-center justify-center text-blue-600 text-3xl font-black italic">
-                            {/* Avatar harfi için kontrol */}
-                            {formData.name ? formData.name[0].toUpperCase() : (session?.user?.name ? session.user.name[0].toUpperCase() : "S")}
-                        </div>
+                    <div>
+                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Tamamlanan</p>
+                        <p className="text-3xl font-black text-slate-900">{stats.completed}</p>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 -mt-6">
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex items-center gap-4 mb-2">
-                                <User size={18} className="text-blue-500" />
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tam Ad</p>
-                            </div>
-                            {isEditing ? (
-                                <input
-                                    className="w-full p-2 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                />
-                            ) : (
-                                <p className="text-slate-900 font-black text-lg">
-                                    {/* BURASI DEĞİŞTİ: formData.name boşsa isimsiz kullanıcı deme, state'e güven */}
-                                    {formData.name || (session?.user?.name) || "İsim Belirtilmemiş"}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Email Alanı */}
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex items-center gap-4 mb-2">
-                                <Mail size={18} className="text-purple-500" />
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">E-posta</p>
-                            </div>
-                            {isEditing ? (
-                                <input
-                                    className="w-full p-2 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                />
-                            ) : (
-                                <p className="text-slate-900 font-black text-lg">
-                                    {formData.email || session?.user?.email}
-                                </p>
-                            )}
-                        </div>
+                {/* Bekleyen */}
+                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
+                    <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600">
+                        <AlertCircle size={28} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Bekleyen</p>
+                        <p className="text-3xl font-black text-slate-900">{stats.pending}</p>
                     </div>
                 </div>
             </div>

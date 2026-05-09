@@ -179,13 +179,14 @@ const updateProfile = async (req, res) => {
       [full_name, email, userId]
     );
 
-    res.json({
-      message: 'Profil başarıyla güncellendi.',
-      user: result.rows[0]
-    });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
+    }
+
+    res.json({ message: 'Profil güncellendi', user: result.rows[0] });
   } catch (err) {
-    console.error('Update Profile Error:', err);
-    res.status(500).json({ message: 'Profil güncellenirken bir hata oluştu.' });
+    console.error(err);
+    res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
 
