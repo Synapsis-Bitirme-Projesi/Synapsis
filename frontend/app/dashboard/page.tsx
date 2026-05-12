@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import WeeklySchedule from '../components/WeeklySchedule';
 import AcademicCalendar from '../components/AcademicCalendar';
+import { useSession } from "next-auth/react";
 import { Search, Bell, Sun, Moon, Calendar, Clock, AlertCircle, GraduationCap } from 'lucide-react';
 
 export default function DashboardPage() {
+    const { data: session } = useSession();
     const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('synapsis-theme') === 'dark';
@@ -74,8 +76,8 @@ export default function DashboardPage() {
                     </button>
                     <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><Bell size={20} /></button>
                     <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-800">
-                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 hidden sm:block">tolgaaaaaaa</span>
-                        <div className="h-10 w-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">T</div>
+                        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 hidden sm:block">{session?.user?.name || "User"}</span>
+                        <div className="h-10 w-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">{session?.user?.name?.[0] || "U"}</div>
                     </div>
                 </div>
             </header>
@@ -85,7 +87,7 @@ export default function DashboardPage() {
                 {/* KARŞILAMA MESAJI */}
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <h2 className="text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-                        Merhaba, <span className="text-blue-600 dark:text-blue-400">tolgaaaaaaa</span>
+                        Merhaba, <span className="text-blue-600 dark:text-blue-400">{session?.user?.name || "User"}</span>
                     </h2>
                     <div className="flex flex-wrap items-center gap-4 mt-4 text-slate-500 dark:text-slate-400 font-medium">
                         <div className="flex items-center gap-2 bg-white dark:bg-[#111113] px-4 py-2 rounded-full shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">

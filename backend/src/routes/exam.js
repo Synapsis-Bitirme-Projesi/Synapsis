@@ -24,9 +24,9 @@ router.post('/', protect, async (req, res) => {
 });
 
 // 2. READ: Kullanıcının tüm sınavlarını getirme (GET /api/exams)
-router.get('/', protect, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = 1;
         // Sınavları tarihe göre (yakından uzağa) sıralıyoruz
         const exams = await pool.query(
             "SELECT * FROM exams WHERE user_id = $1 ORDER BY exam_date ASC, exam_time ASC",

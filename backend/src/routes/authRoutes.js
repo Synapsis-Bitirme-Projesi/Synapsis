@@ -28,7 +28,7 @@ router.put('/update-settings', protect, updateSettings);
 router.put('/update-profile', protect, updateProfile);
 
 // --- Tema (Dark/Light) Rotaları ---
-router.get('/settings/theme', protect, getTheme);
+router.get('/settings/theme', getTheme);
 router.post('/settings/theme', protect, updateTheme);
 
 // --- Görev (Task) Rotaları ---

@@ -79,16 +79,16 @@ function LayoutContent({ children }: { children: ReactNode }) {
               active={pathname === "/tasks"}
             />
             <SidebarLink
-              href="/dashboard/courses"
+              href="/courses"
               icon={<BookOpen size={20} />}
               label="Derslerim"
               active={pathname === "/dashboard/courses"}
             />
             <SidebarLink
-              href="/dashboard/exams"
+              href="/exams"
               icon={<CalendarIcon size={20} />}
               label="Sınav Takvimi"
-              active={pathname === "/dashboard/exams"}
+              active={pathname === "/exams"}
             />
           </nav>
 

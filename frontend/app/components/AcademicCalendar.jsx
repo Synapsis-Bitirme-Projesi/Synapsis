@@ -73,7 +73,7 @@ const AcademicCalendar = ({ isDarkMode }) => {
                         const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
                         // Bu güne ait sınavları bul (Veritabanındaki formatla eşleştir)
-                        const dayExams = exams.filter(e => e.exam_date.split('T')[0] === dateString);
+                        const dayExams = exams.filter(e => e.exam_date.slice(0,10) === dateString);
                         const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
 
                         return (

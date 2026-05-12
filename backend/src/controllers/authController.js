@@ -193,8 +193,8 @@ const updateProfile = async (req, res) => {
 const getTheme = async (req, res) => {
   try {
     const userId = req.user.userId; // Middleware'den gelen id
-    const user = await pool.query('SELECT theme FROM users WHERE id = $1', [userId]);
-    res.json({ theme: user.rows[0].theme });
+    const user = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    res.json({ theme: user.rows[0]?.theme || 'light' });
   } catch (err) {
     res.status(500).json({ error: "Tema çekilemedi" });
   }

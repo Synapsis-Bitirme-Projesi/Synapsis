@@ -9,6 +9,18 @@ const WeeklySchedule = ({ isDarkMode }) => {
     const days = ['PAZARTESİ', 'SALI', 'ÇARŞAMBA', 'PERŞEMBE', 'CUMA'];
     const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
+    const [formData, setFormData] = useState({
+      course_name: '',
+      course_code: '',
+      day_of_week: 1,
+      start_time: '08:00',
+      end_time: '09:00',
+      location: '',
+      color_code: '#3B82F6'
+    });
+
+    const [error, setError] = useState('');
+
     useEffect(() => {
         fetchCourses();
     }, []);
@@ -22,6 +34,39 @@ const WeeklySchedule = ({ isDarkMode }) => {
             setCourses(res.data);
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const handleClose = () => {
+      setIsModalOpen(false);
+      setError('');
+    };
+
+    const handleChange = (e) => {
+      setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post('http://localhost:5000/api/courses', formData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setIsModalOpen(false);
+        setFormData({
+          course_name: '',
+          course_code: '',
+          day_of_week: 1,
+          start_time: '08:00',
+          end_time: '09:00',
+          location: '',
+          color_code: '#3B82F6'
+        });
+        fetchCourses();
+        } catch (err) {
+          console.error('Error adding course:', err);
+          setError(err.response?.data?.error || err.message || 'Ders eklenemedi. Lütfen kontrol edin.');
         }
     };
 
@@ -118,6 +163,133 @@ const WeeklySchedule = ({ isDarkMode }) => {
                     </div>
                 </div>
             </div>
+
+            {isModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+                <div className={`w-full max-w-md p-6 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 shadow-black/10'}`}>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-2xl font-bold">Yeni Ders Ekle</h3>
+                    <button
+                      onClick={handleClose}
+                      className={`p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all ${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && (
+                      <div className={`p-3 rounded-xl border text-sm ${isDarkMode ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-red-50 border-red-400 text-red-800'}`} role="alert">
+                        {error}
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">Ders Adı</label>
+                      <input
+                        name="course_name"
+                        value={formData.course_name}
+                        onChange={handleChange}
+                        required
+                        className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
+                        placeholder="Örn: Web Programlama"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">Ders Kodu</label>
+                      <input
+                        name="course_code"
+                        value={formData.course_code}
+                        onChange={handleChange}
+                        required
+                        className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
+                        placeholder="Örn: CSE101"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">Gün</label>
+                        <select
+                          name="day_of_week"
+                          value={formData.day_of_week}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                        >
+                          <option value={1}>PAZARTESİ</option>
+                          <option value={2}>SALI</option>
+                          <option value={3}>ÇARŞAMBA</option>
+                          <option value={4}>PERŞEMBE</option>
+                          <option value={5}>CUMA</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">Başlangıç</label>
+                        <select
+                          name="start_time"
+                          value={formData.start_time}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                        >
+                          {timeSlots.map(time => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">Bitiş</label>
+                        <select
+                          name="end_time"
+                          value={formData.end_time}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
+                        >
+                          {timeSlots.map(time => (
+                            <option key={time} value={time}>{time}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">Renk</label>
+                        <input
+                          type="color"
+                          name="color_code"
+                          value={formData.color_code}
+                          onChange={handleChange}
+                          className="w-full h-12 p-1 rounded-xl border-2 border-slate-300 dark:border-slate-600 shadow-sm cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">Konum</label>
+                      <input
+                        name="location"
+                        value={formData.location}
+                        onChange={handleChange}
+                        className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
+                        placeholder="Örn: A-101"
+                      />
+                    </div>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        className={`flex-1 px-6 py-3 rounded-xl font-semibold border-2 transition-all ${isDarkMode ? 'border-slate-600 hover:border-slate-500 hover:bg-slate-700 bg-slate-700/30 text-slate-200' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-100 bg-transparent text-slate-700'}`}
+                      >
+                        İptal
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
+                      >
+                        Ekle
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
         </div>
     );
 };
