@@ -85,9 +85,15 @@ export default function LoginPage() {
 
                 {/* Register Link (Eksik Olan Kısım) */}
                 <p className="text-center mt-8 text-slate-500 font-bold text-sm">
+<<<<<<< HEAD
+                    Don't have an account?{" "}
+                    <Link href="/register" className="text-blue-600 hover:underline">
+                        Create Account
+=======
                     Hesabınız yok mu?{" "}
                     <Link href="/register" className="text-blue-600 hover:underline">
                         Hesap Oluştur
+>>>>>>> 4356126d9ffb7a35cb963deaf640c0be088bd90b
                     </Link>
                 </p>
             </div>

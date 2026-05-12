@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --foreground-rgb: 15, 23, 42;
+    /* Koyu Lacivert/Siyah (slate-900) */
+    --background-rgb: 248, 250, 252;
+    /* Çok Açık Gri (slate-50) */
+}
+
+/* Karanlık mod aktif olduğunda renkleri tersine çeviriyoruz */
+.dark {
+    --foreground-rgb: 248, 250, 252;
+    /* Beyaz (slate-50) */
+    --background-rgb: 10, 10, 12;
+    /* Siyah */
+}
+
+body {
+    color: rgb(var(--foreground-rgb));
+    background: rgb(var(--background-rgb));
+    /* Yazıların lacivertimsi/bulanık durmasını engellemek için */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ÖNEMLİ: Eğer hala lacivertimsi kalıyorsa, 
+   bazı tarayıcıların varsayılan h2 stilini ezelim */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: inherit;
+    /* Body'den gelen rengi zorunlu yap */
+}
+
+/* Seçim rengini (Selection) daha Synapsis'e uygun yapalım */
+::selection {
+    background-color: #2563eb;
+    color: white;
+}

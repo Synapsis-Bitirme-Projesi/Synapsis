@@ -225,7 +225,11 @@ export default function Home() {
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div className="bg-white p-8 rounded-[3rem] shadow-3xl border border-white max-w-sm w-full animate-in zoom-in duration-300">
             <h3 className="text-3xl font-black text-slate-800 mb-2">Görünüm</h3>
+<<<<<<< HEAD
+            <p className="text-slate-500 font-medium mb-8">Dashboard'unu kişiselleştir.</p>
+=======
             <p className="text-slate-500 font-medium mb-8"> Dashboard&apos;unu kişiselleştir.</p>
+>>>>>>> 4356126d9ffb7a35cb963deaf640c0be088bd90b
 
             <div className="space-y-3 mb-8">
               {['classes', 'exams', 'tasks'].map((widget) => (
