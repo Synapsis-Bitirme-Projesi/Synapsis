@@ -189,6 +189,104 @@ const updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Sunucu hatası' });
   }
 };
+// Kullanıcı temasını getir
+const getTheme = async (req, res) => {
+  try {
+    const userId = req.user.userId; // Middleware'den gelen id
+    const user = await pool.query('SELECT theme FROM users WHERE id = $1', [userId]);
+    res.json({ theme: user.rows[0].theme });
+  } catch (err) {
+    res.status(500).json({ error: "Tema çekilemedi" });
+  }
+};
 
+// Kullanıcı temasını güncelle
+const updateTheme = async (req, res) => {
+  try {
+    const { theme } = req.body;
+    const userId = req.user.userId;
+    await pool.query('UPDATE users SET theme = $1 WHERE id = $2', [theme, userId]);
+    res.json({ message: "Tema başarıyla güncellendi" });
+  } catch (err) {
+    res.status(500).json({ error: "Tema güncellenemedi" });
+  }
+};
+
+const addTask = async (req, res) => {
+  try {
+    const { title, course, priority, description, due_date } = req.body;
+    const userId = req.user.userId;
+
+    let course_id = course ? parseInt(course) : null;
+    if (isNaN(course_id)) {
+      course_id = null;
+    }
+    const priority_val = (priority || 'medium').toLowerCase();
+
+    // Eksik veri kontrolü (Validation)
+    if (!title) {
+      return res.status(400).json({ error: "Görev başlığı zorunludur." });
+    }
+
+    const newTask = await pool.query(
+      "INSERT INTO tasks (user_id, title, course_id, description, due_date, priority, status) VALUES ($1, $2, $3, $4, $5, $6, 'todo') RETURNING *",
+      [userId, title, course_id, description, due_date, priority_val]
+    );
+
+    res.status(201).json(newTask.rows[0]);
+  } catch (err) {
+    console.error("DB Hatası:", err.message);
+    res.status(500).json({ error: "Görev kaydedilemedi." });
+  }
+};
+
+// Kullanıcının Görevlerini Listeleme
+const getTasks = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const tasks = await pool.query(
+      'SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json(tasks.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Görevler getirilemedi." });
+  }
+};
+const deleteTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    // Sadece kullanıcıya ait olan görevi sil (Güvenlik için)
+    const result = await pool.query(
+      'DELETE FROM tasks WHERE id = $1 AND user_id = $2 RETURNING *',
+      [id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Görev bulunamadı veya yetkiniz yok." });
+    }
+
+    res.json({ message: "Görev başarıyla silindi." });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: "Görev silinirken hata oluştu." });
+  }
+};
+
+// Bunları module.exports kısmına eklemeyi unutma:
 // module.exports kısmına eklemeyi unutma:
-module.exports = { register, login, getMe, updateSettings, updateProfile };
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateSettings,
+  updateProfile,
+  getTheme,
+  updateTheme,
+  addTask,    // <--- Burada mutlaka olmalı
+  getTasks,    // <--- Burada mutlaka olmalı
+  deleteTask   // <--- Yeni ekledik
+};
