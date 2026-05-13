@@ -96,7 +96,7 @@ export default function TasksPage() {
     if (!token) return;
     axios.get(COURSES_API_URL, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => setCourses(Array.isArray(res.data) ? res.data : []))
-      .catch(() => {});
+      .catch(() => { });
   }, [fetchTasks]);
 
   const resetForm = () => {
@@ -362,11 +362,10 @@ export default function TasksPage() {
                 return (
                   <div
                     key={taskId}
-                    className={`flex items-center justify-between p-6 bg-white dark:bg-[#111113] border rounded-3xl group hover:shadow-xl transition-all ${
-                      item.status === "done"
+                    className={`flex items-center justify-between p-6 bg-white dark:bg-[#111113] border rounded-3xl group hover:shadow-xl transition-all ${item.status === "done"
                         ? "border-green-100 dark:border-green-900/30 opacity-60"
                         : "border-slate-100 dark:border-slate-800 hover:border-blue-500/30"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-4">
                       <button
@@ -404,19 +403,17 @@ export default function TasksPage() {
                               {courseName}
                             </span>
                           )}
-                          <span className={`text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-wider ${
-                            isHigh
+                          <span className={`text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-wider ${isHigh
                               ? "bg-rose-50 dark:bg-rose-900/30 text-rose-600"
                               : "bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                          }`}>
+                            }`}>
                             {item.priority ? item.priority.charAt(0).toUpperCase() + item.priority.slice(1) : "Medium"}
                           </span>
                           {item.due_date && (
-                            <span className={`text-xs px-2 py-1 rounded-lg font-black uppercase tracking-wider ${
-                              isOverdue
+                            <span className={`text-xs px-2 py-1 rounded-lg font-black uppercase tracking-wider ${isOverdue
                                 ? "bg-red-50 dark:bg-red-900/20 text-red-500"
                                 : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-                            }`}>
+                              }`}>
                               {new Date(item.due_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US")}
                             </span>
                           )}
@@ -447,105 +444,105 @@ export default function TasksPage() {
           )}
         </div>
       </div>
-    {/* Edit Task Modal */}
-    {editingTask && (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-lg border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">Edit Task</h2>
-            <button onClick={() => setEditingTask(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-              <X size={20} className="text-slate-500" />
-            </button>
-          </div>
-          <form onSubmit={handleEditSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-lg border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Edit Task</h2>
+              <button onClick={() => setEditingTask(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Name</label>
+                  <input
+                    value={editTaskName}
+                    onChange={e => setEditTaskName(e.target.value)}
+                    required
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Type</label>
+                  <select
+                    value={editType}
+                    onChange={e => setEditType(e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
+                  >
+                    {TYPE_OPTIONS.filter(t => t !== "Exam").map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Course</label>
+                  <select
+                    value={editCourse}
+                    onChange={e => setEditCourse(e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
+                  >
+                    <option value="">No Course</option>
+                    {courses.map(c => (
+                      <option key={c.id} value={c.id}>{c.course_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
+                  <select
+                    value={editPriority}
+                    onChange={e => setEditPriority(e.target.value)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Name</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
                 <input
-                  value={editTaskName}
-                  onChange={e => setEditTaskName(e.target.value)}
-                  required
+                  type="date"
+                  value={editDueDate}
+                  onChange={e => setEditDueDate(e.target.value)}
                   className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Type</label>
-                <select
-                  value={editType}
-                  onChange={e => setEditType(e.target.value)}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
-                >
-                  {TYPE_OPTIONS.filter(t => t !== "Exam").map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-vertical text-slate-900 dark:text-white"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Course</label>
-                <select
-                  value={editCourse}
-                  onChange={e => setEditCourse(e.target.value)}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTask(null)}
+                  className="flex-1 py-3 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                 >
-                  <option value="">No Course</option>
-                  {courses.map(c => (
-                    <option key={c.id} value={c.id}>{c.course_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
-                <select
-                  value={editPriority}
-                  onChange={e => setEditPriority(e.target.value)}
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-900 dark:text-white"
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditSubmitting}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
+                  {isEditSubmitting ? <Loader2 size={18} className="animate-spin" /> : "Save"}
+                </button>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
-              <input
-                type="date"
-                value={editDueDate}
-                onChange={e => setEditDueDate(e.target.value)}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-              <textarea
-                value={editDescription}
-                onChange={e => setEditDescription(e.target.value)}
-                rows={3}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-vertical text-slate-900 dark:text-white"
-              />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setEditingTask(null)}
-                className="flex-1 py-3 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isEditSubmitting}
-                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                {isEditSubmitting ? <Loader2 size={18} className="animate-spin" /> : "Save"}
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
-      </div>
-    )}
+      )}
     </div>
   );
 }
