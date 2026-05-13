@@ -125,32 +125,41 @@ const WeeklySchedule = ({ isDarkMode }) => {
 
                                     {/* Gün Hücreleri */}
                                     {days.map((_, dayIdx) => {
-                                        const currentCourse = courses.find(c =>
+                                        const startingCourse = courses.find(c =>
                                             c.day_of_week === (dayIdx + 1) &&
-                                            c.start_time.startsWith(time)
+                                            c.start_time.slice(0, 5) === time
                                         );
+
+                                        let blockHeight = null;
+                                        if (startingCourse) {
+                                            const endTime = startingCourse.end_time?.slice(0, 5);
+                                            const startIdx = timeSlots.indexOf(time);
+                                            const endIdx = timeSlots.indexOf(endTime);
+                                            const span = endIdx > startIdx ? endIdx - startIdx : 1;
+                                            blockHeight = span * 80 - 8;
+                                        }
 
                                         return (
                                             <div key={dayIdx} className={`border-l transition-colors ${isDarkMode ? 'border-slate-800' : 'border-slate-100'
-                                                } p-1 relative hover:bg-blue-500/5 transition-colors`}>
-                                                {currentCourse && (
+                                                } p-1 relative hover:bg-blue-500/5 transition-colors`} style={{ overflow: startingCourse ? 'visible' : undefined }}>
+                                                {startingCourse && (
                                                     <div
                                                         className="absolute inset-x-1 top-1 rounded-lg p-3 shadow-md border-l-4 transition-all hover:scale-[1.02] cursor-pointer"
                                                         style={{
-                                                            backgroundColor: isDarkMode ? `${currentCourse.color_code}35` : `${currentCourse.color_code}15`,
-                                                            borderColor: currentCourse.color_code,
-                                                            color: isDarkMode ? '#f1f5f9' : currentCourse.color_code,
-                                                            height: 'calc(100% - 8px)',
+                                                            backgroundColor: isDarkMode ? `${startingCourse.color_code}35` : `${startingCourse.color_code}15`,
+                                                            borderColor: startingCourse.color_code,
+                                                            color: isDarkMode ? '#f1f5f9' : startingCourse.color_code,
+                                                            height: `${blockHeight}px`,
                                                             zIndex: 10
                                                         }}
                                                     >
                                                         <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
-                                                            {currentCourse.course_name}
+                                                            {startingCourse.course_name}
                                                         </div>
                                                         <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold">
-                                                            <span>{currentCourse.course_code}</span>
+                                                            <span>{startingCourse.course_code}</span>
                                                             <span className="opacity-50">•</span>
-                                                            <span>{currentCourse.location}</span>
+                                                            <span>{startingCourse.location}</span>
                                                         </div>
                                                     </div>
                                                 )}
