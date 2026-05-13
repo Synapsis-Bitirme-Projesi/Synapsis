@@ -200,7 +200,7 @@ export default function NotesPage() {
         setNotes(JSON.parse(saved));
       } catch {
         if (editor) {
-          editor.commands.setContent(saved, false);
+          editor.commands.setContent(saved, { emitUpdate: false });
         }
       }
     }
@@ -223,7 +223,7 @@ export default function NotesPage() {
   const startEdit = (note: Note) => {
     setEditingId(note.id);
     setCurrentTitle(note.title);
-    editor.commands.setContent(note.html, false);
+    editor.commands.setContent(note.html, { emitUpdate: false });
   };
 
   const saveNote = () => {
