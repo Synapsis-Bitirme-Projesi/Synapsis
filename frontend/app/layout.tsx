@@ -1,8 +1,8 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -18,8 +18,15 @@ import "./globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-slate-50 font-sans transition-colors duration-300">
+    // suppressHydrationWarning: the inline script below adds the "dark" class before
+    // React hydrates, so the server-rendered HTML won't have it — that's expected.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Runs synchronously before first paint: applies dark class from localStorage
+            immediately so there is no light-mode flash when dark mode was previously set. */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('synapsis-theme')==='dark')document.documentElement.classList.add('dark');}catch(e){}})();` }} />
+      </head>
+      <body className="antialiased bg-slate-50 dark:bg-[#0a0a0c] font-sans transition-colors duration-300">
         <AuthProvider>
           <LayoutContent>{children}</LayoutContent>
         </AuthProvider>
@@ -31,22 +38,49 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 function LayoutContent({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Yükleme ekranı - Daha şık bir spinner
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0a0a0c]">
-        <div className="relative flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          <span className="absolute text-[10px] font-black text-blue-600 italic">S</span>
-        </div>
+  const isAuthPage = pathname === "/" || pathname === "/login" || pathname === "/register";
+
+  // Sync the NextAuth JWT to localStorage so legacy pages can read it
+  useEffect(() => {
+    if (status === "authenticated" && (session as any)?.accessToken) {
+      localStorage.setItem('token', (session as any).accessToken);
+    }
+  }, [status, session]);
+
+  // Redirect to login when session is definitively gone on a protected page
+  useEffect(() => {
+    if (status === "unauthenticated" && !isAuthPage) {
+      router.push("/login");
+    }
+  }, [status, isAuthPage, router]);
+
+  const Spinner = () => (
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0a0a0c]">
+      <div className="relative flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+        <span className="absolute text-[10px] font-black text-blue-600 italic">S</span>
       </div>
-    );
+    </div>
+  );
+
+  // First load: session not yet fetched — show spinner so no layout flashes.
+  // Keep the !session guard so a profile update() call (which briefly re-enters loading
+  // with the old session still cached) doesn't replace the page with a spinner.
+  if (status === "loading" && !session) {
+    return <Spinner />;
   }
 
-  // Sidebar sadece giriş yapılmışsa ve auth sayfalarında değilsek görünsün
-  // "authenticated" kontrolü barın durduk yere kaybolmasını engeller
-  const showSidebar = status === "authenticated" && pathname !== "/login" && pathname !== "/register";
+  // Unauthenticated on a protected page: redirect is queued in the effect below but
+  // hasn't navigated yet. Return the spinner so no protected content ever paints.
+  if (status === "unauthenticated" && !isAuthPage) {
+    return <Spinner />;
+  }
+
+  // Show sidebar for authenticated users on non-auth pages.
+  const showSidebar = status === "authenticated" && !isAuthPage;
 
   return (
     <div className="min-h-screen flex w-full overflow-hidden bg-slate-50 dark:bg-[#0a0a0c]">
@@ -82,19 +116,19 @@ function LayoutContent({ children }: { children: ReactNode }) {
             <SidebarLink
               href="/courses"
               icon={<BookOpen size={20} />}
-              label="Derslerim"
-              active={pathname === "/dashboard/courses"}
+              label="Courses"
+              active={pathname === "/courses"}
             />
             <SidebarLink
               href="/exams"
               icon={<CalendarIcon size={20} />}
-              label="Sınav Takvimi"
+              label="Calendar"
               active={pathname === "/exams"}
             />
             <SidebarLink
               href="/notes"
               icon={<FileText size={20} />}
-              label="Notlar"
+              label="Notes"
               active={pathname === "/notes"}
             />
           </nav>
@@ -107,18 +141,18 @@ function LayoutContent({ children }: { children: ReactNode }) {
               </div>
               <div className="flex flex-col overflow-hidden">
                 <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                  {session?.user?.name || "Tolga"}
+                  {session?.user?.name || "User"}
                 </p>
-                <p className="text-[10px] font-bold text-blue-500 tracking-tighter">Profil Ayarları</p>
+                <p className="text-[10px] font-bold text-blue-500 tracking-tighter">Profile Settings</p>
               </div>
             </Link>
 
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => setShowLogoutModal(true)}
               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold transition-all group"
             >
               <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-              <span className="text-sm">Güvenli Çıkış</span>
+              <span className="text-sm">Sign Out</span>
             </button>
           </div>
         </aside>
@@ -128,6 +162,37 @@ function LayoutContent({ children }: { children: ReactNode }) {
       <main className="flex-1 h-screen overflow-y-auto bg-slate-50 dark:bg-[#0a0a0c] relative transition-colors duration-300">
         {children}
       </main>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-8 w-full max-w-sm border border-slate-200 dark:border-slate-700">
+            <div className="flex flex-col items-center text-center gap-3 mb-6">
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-2xl">
+                <LogOut size={24} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">Sign Out</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                Are you sure you want to sign out?
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 py-3 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowLogoutModal(false); signOut({ redirect: false }).then(() => router.push("/login")); }}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+              >
+                Yes, Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

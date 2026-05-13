@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db'); // Kendi DB bağlantı dosyanın yoluna göre düzelt
 const { protect } = require('../middleware/authMiddleware'); // İçerideki gerçek isim neyse o// 1. CREATE: Yeni ders ekleme (POST /api/courses)
-router.post('/', async (req, res) => {
+router.post('/', protect, async (req, res) => {
     try {
         const { course_name, course_code, day_of_week, start_time, end_time, location, color_code } = req.body;
-        const userId = 1;
+        const userId = req.user.userId;
 
         const newCourse = await pool.query(
 `INSERT INTO courses 
@@ -22,9 +22,9 @@ router.post('/', async (req, res) => {
 });
 
 // 2. READ: Kullanıcının tüm ders programını getirme (GET /api/courses)
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
-        const userId = 1;
+        const userId = req.user.userId;
         const courses = await pool.query(
             "SELECT * FROM courses WHERE user_id = $1 ORDER BY day_of_week ASC, start_time ASC",
             [userId] // Artık $1 olduğu için bu hata vermeyecek
