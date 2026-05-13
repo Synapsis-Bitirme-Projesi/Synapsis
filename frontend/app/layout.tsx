@@ -9,6 +9,7 @@ import {
   LogOut,
   BookOpen,
   Calendar as CalendarIcon,
+  FileText,
   Settings,
   GraduationCap
 } from "lucide-react";
@@ -89,6 +90,12 @@ function LayoutContent({ children }: { children: ReactNode }) {
               icon={<CalendarIcon size={20} />}
               label="Sınav Takvimi"
               active={pathname === "/exams"}
+            />
+            <SidebarLink
+              href="/notes"
+              icon={<FileText size={20} />}
+              label="Notlar"
+              active={pathname === "/notes"}
             />
           </nav>
 
