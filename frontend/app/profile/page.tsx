@@ -1,92 +1,5 @@
 "use client";
 import { useSession } from "next-auth/react";
-<<<<<<< HEAD
-import { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, CheckCircle, AlertCircle } from "lucide-react";
-
-export default function Dashboard() {
-    const { data: session, status } = useSession();
-    const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0 });
-
-    // API çağrısını dışarı aldık ki useEffect içinde karmaşa yaratmasın
-    const fetchStats = useCallback(async () => {
-        const token = (session as any)?.accessToken || (session as any)?.user?.accessToken;
-        if (!token) return;
-
-        try {
-            const res = await fetch("http://127.0.0.1:5000/api/tasks/stats", {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setStats({
-                    total: data.total || 0,
-                    completed: data.completed || 0,
-                    pending: data.pending || 0
-                });
-            }
-        } catch (error) {
-            console.error("Dashboard verisi çekilirken hata oluştu:", error);
-        }
-    }, [session]);
-
-    useEffect(() => {
-        if (status === "authenticated") {
-            fetchStats();
-        }
-    }, [status, fetchStats]);
-
-    // KRİTİK: Eğer profil sayfası açılıyor ama burası dönüyorsa 
-    // buradaki null dönüşü Layout'taki spinner ile çakışıyor olabilir.
-    // status "loading" olsa bile ana iskeleti render ederek kilitlenmeyi kırıyoruz.
-    if (status === "loading") return null;
-
-    return (
-        <div className="p-8 max-w-7xl mx-auto min-h-screen">
-            <header className="mb-10">
-                <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                    Hoş geldin, {session?.user?.name || "Tolga"} 👋
-                </h1>
-                <p className="text-slate-500 font-medium mt-2">İşlerin her zamanki gibi kontrol altında.</p>
-            </header>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Toplam Görev */}
-                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
-                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
-                        <LayoutDashboard size={28} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Toplam Görev</p>
-                        <p className="text-3xl font-black text-slate-900">{stats.total}</p>
-                    </div>
-                </div>
-
-                {/* Tamamlanan */}
-                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
-                    <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
-                        <CheckCircle size={28} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Tamamlanan</p>
-                        <p className="text-3xl font-black text-slate-900">{stats.completed}</p>
-                    </div>
-                </div>
-
-                {/* Bekleyen */}
-                <div className="p-6 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all hover:shadow-md">
-                    <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600">
-                        <AlertCircle size={28} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Bekleyen</p>
-                        <p className="text-3xl font-black text-slate-900">{stats.pending}</p>
-=======
 import { useState, useEffect } from "react";
 import { User, Mail, Save, X, Edit3, Shield, Sparkles } from "lucide-react";
 
@@ -96,7 +9,6 @@ export default function ProfilePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [formData, setFormData] = useState({ full_name: "", email: "" });
 
-    // Session verisini forma güvenli bir şekilde aktarma
     useEffect(() => {
         if (session?.user && !isEditing) {
             const displayName = session.user.name || (session.user as any).full_name || "";
@@ -145,14 +57,12 @@ export default function ProfilePage() {
         }
     };
 
-    // Yüklenme asılı kalmasın diye sade bir iskelet
     if (status === "loading") return null;
 
     const userInitial = formData.full_name?.[0]?.toUpperCase() || "T";
 
     return (
         <div className="p-8 md:p-12 max-w-5xl mx-auto min-h-screen">
-            {/* Sayfa Başlığı */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
@@ -162,7 +72,6 @@ export default function ProfilePage() {
                     <p className="text-slate-500 font-medium text-lg">Synapsis hesabını ve kişisel tercihlerini yönet.</p>
                 </div>
 
-                {/* Aksiyon Butonları */}
                 {!isEditing ? (
                     <button
                         onClick={() => setIsEditing(true)}
@@ -194,33 +103,26 @@ export default function ProfilePage() {
                 )}
             </div>
 
-            {/* Ana Profil Kartı */}
             <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-slate-100 overflow-hidden relative">
-                {/* Dekoratif Arka Plan (Banner) */}
                 <div className="h-40 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-black opacity-10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
                 </div>
 
                 <div className="px-8 md:px-12 pb-12">
-                    {/* Avatar Alanı */}
                     <div className="relative -top-16 flex justify-between items-end mb-2">
                         <div className="w-32 h-32 bg-white rounded-[2rem] p-1.5 shadow-xl shadow-slate-200/50 flex items-center justify-center text-blue-600 text-5xl font-black italic border-4 border-slate-50 shrink-0 transform transition-transform hover:scale-105">
                             <div className="w-full h-full bg-blue-50 rounded-3xl flex items-center justify-center">
                                 {userInitial}
                             </div>
                         </div>
-
-                        {/* Rozet */}
                         <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold text-sm mb-4 border border-indigo-100">
                             <Shield size={16} />
                             Aktif Kullanıcı
                         </div>
                     </div>
 
-                    {/* Form Alanları */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
-                        {/* İsim Alanı */}
                         <div className={`p-6 rounded-3xl transition-colors ${isEditing ? 'bg-blue-50/50 border-2 border-blue-100' : 'bg-slate-50 border border-slate-100'}`}>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
@@ -242,7 +144,6 @@ export default function ProfilePage() {
                             )}
                         </div>
 
-                        {/* E-posta Alanı */}
                         <div className={`p-6 rounded-3xl transition-colors ${isEditing ? 'bg-purple-50/50 border-2 border-purple-100' : 'bg-slate-50 border border-slate-100'}`}>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
@@ -264,7 +165,6 @@ export default function ProfilePage() {
                                 </p>
                             )}
                         </div>
->>>>>>> 4356126d9ffb7a35cb963deaf640c0be088bd90b
                     </div>
                 </div>
             </div>
