@@ -23,10 +23,11 @@ Status: `todo` | `in-progress` | `done`
 
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
-| Auth API endpoints (register, login, profile)      | Teammate A | todo   |
+| Auth API endpoints (register, login, profile)      | Teammate A | done   |
 | Dashboard layout + widget container                | Teammate B | done   |
-| Widget toggle/reorder functionality                | Teammate B | done |
-| Today's Classes, Upcoming Exams, Urgent Tasks widgets | Teammate C | done |
+| Weekly schedule widget                             | Teammate B | done   |
+| Upcoming Deadlines and Urgent Tasks widgets        | Teammate C | done   |
+| Dynamic classes-today count from course schedule  | Teammate C | done   |
 
 ---
 
@@ -36,9 +37,11 @@ Status: `todo` | `in-progress` | `done`
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
 | Course schedule API endpoints (CRUD)               | Teammate A | done   |
-| Exam date / calendar API endpoints                 | Teammate A | done   |
+| Exam API endpoints (CRUD)                          | Teammate A | done   |
 | Weekly course schedule creator UI                  | Teammate B | done   |
-| Monthly/weekly calendar views UI                   | Teammate B | done   |
+| Monthly calendar view UI                           | Teammate B | done   |
+| Calendar shows exams + tasks with due dates        | Teammate B | done   |
+| Click exam on calendar to edit/delete              | Teammate B | done   |
 
 ---
 
@@ -47,18 +50,28 @@ Status: `todo` | `in-progress` | `done`
 
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
-| Task API endpoints (CRUD, priority, course tag)    | Teammate A | todo   |
-| Notes API endpoints (CRUD, course link)            | Teammate A | todo   |
-| Task list UI (create, complete, delete, course assign) | Teammate C | todo |
-| Note editor UI (text editor, link to course)       | Teammate C | todo   |
+| Task API endpoints (CRUD, priority, course tag)    | Teammate A | done   |
+| Task type field + full edit endpoint               | Teammate A | done   |
+| Notes API endpoints (CRUD)                         | Teammate A | done   |
+| Task form with Type select and dynamic course dropdown | Teammate C | done |
+| Task edit modal (pencil icon, pre-filled)          | Teammate C | done   |
+| Overdue badge for past-due incomplete tasks        | Teammate C | done   |
+| Note editor UI (Tiptap, auto-save, slash commands) | Teammate C | done   |
 
 ---
 
 ## Phase 5 — Testing & Polish (Sprint 9-10)
 
-| Task                                               | Owner      | Status |
-|----------------------------------------------------|------------|--------|
-| Responsive design (desktop/tablet/mobile)          | Teammate B | todo   |
-| Bug fixing and cross-module code review            | All        | todo   |
-| Usability testing (target SUS score ≥75)           | Teammate C | todo   |
-| Deployment setup + final documentation             | Teammate A | todo   |
+| Task                                               | Owner      | Status      |
+|----------------------------------------------------|------------|-------------|
+| Course edit/delete UI + backend auth fix           | All        | done        |
+| Exam edit/delete via calendar click                | All        | done        |
+| Auth flow fixes (logout modal, auth flash, theme flash) | All   | done        |
+| Public landing page at `/`                         | Teammate B | done        |
+| All UI text translated to English                  | All        | done        |
+| Dark mode consistency across all pages             | All        | done        |
+| Priority badge and date display bug fixes          | All        | done        |
+| Bug fixing and cross-module code review            | All        | done        |
+| Responsive design (desktop/tablet/mobile)          | Teammate B | in-progress |
+| Usability testing (target SUS score ≥75)           | Teammate C | todo        |
+| Deployment setup + final documentation             | Teammate A | todo        |

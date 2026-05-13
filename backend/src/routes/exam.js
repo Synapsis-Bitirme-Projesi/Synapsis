@@ -24,10 +24,9 @@ router.post('/', protect, async (req, res) => {
 });
 
 // 2. READ: Kullanıcının tüm sınavlarını getirme (GET /api/exams)
-router.get('/', async (req, res) => {
+router.get('/', protect, async (req, res) => {
     try {
-        const userId = 1;
-        // Sınavları tarihe göre (yakından uzağa) sıralıyoruz
+        const userId = req.user.userId;
         const exams = await pool.query(
             "SELECT * FROM exams WHERE user_id = $1 ORDER BY exam_date ASC, exam_time ASC",
             [userId]
@@ -44,7 +43,7 @@ router.put('/:id', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const { course_name, exam_date, exam_time, location, description, color_code } = req.body;
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         const updateExam = await pool.query(
             `UPDATE exams SET 
@@ -69,7 +68,7 @@ router.put('/:id', protect, async (req, res) => {
 router.delete('/:id', protect, async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         const deleteExam = await pool.query(
             "DELETE FROM exams WHERE id = $1 AND user_id = $2 RETURNING *",

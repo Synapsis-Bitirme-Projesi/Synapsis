@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 const WeeklySchedule = ({ isDarkMode }) => {
     const [courses, setCourses] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const days = ['PAZARTESİ', 'SALI', 'ÇARŞAMBA', 'PERŞEMBE', 'CUMA'];
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
     const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
     const [formData, setFormData] = useState({
@@ -66,7 +66,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
         fetchCourses();
         } catch (err) {
           console.error('Error adding course:', err);
-          setError(err.response?.data?.error || err.message || 'Ders eklenemedi. Lütfen kontrol edin.');
+          setError(err.response?.data?.error || err.message || 'Failed to add course. Please try again.');
         }
     };
 
@@ -81,11 +81,11 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         {/* Başlık Rengi: Aydınlıkta text-slate-900 (Siyah), Karanlıkta text-white */}
                         <h2 className={`text-2xl font-bold transition-colors ${isDarkMode ? 'text-white' : 'text-slate-900'
                             }`}>
-                            Haftalık Ders Programı
+                            Weekly Schedule
                         </h2>
                         <p className={`text-sm mt-1 transition-colors ${isDarkMode ? 'text-slate-400' : 'text-slate-500'
                             }`}>
-                            Akademik takviminizi buradan yönetin.
+                            Manage your academic schedule.
                         </p>
                     </div>
                     <button
@@ -93,7 +93,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-bold text-white flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
                     >
                         <Plus size={18} />
-                        <span>Yeni Ders</span>
+                        <span>New Course</span>
                     </button>
                 </div>
 
@@ -168,7 +168,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
                 <div className={`w-full max-w-md p-6 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 shadow-black/10'}`}>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-2xl font-bold">Yeni Ders Ekle</h3>
+                    <h3 className="text-2xl font-bold">Add New Course</h3>
                     <button
                       onClick={handleClose}
                       className={`p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all ${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
@@ -185,45 +185,45 @@ const WeeklySchedule = ({ isDarkMode }) => {
                       </div>
                     )}
                     <div>
-                      <label className="block text-sm font-semibold mb-2">Ders Adı</label>
+                      <label className="block text-sm font-semibold mb-2">Course Name</label>
                       <input
                         name="course_name"
                         value={formData.course_name}
                         onChange={handleChange}
                         required
                         className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
-                        placeholder="Örn: Web Programlama"
+                        placeholder="E.g., Web Programming"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-2">Ders Kodu</label>
+                      <label className="block text-sm font-semibold mb-2">Course Code</label>
                       <input
                         name="course_code"
                         value={formData.course_code}
                         onChange={handleChange}
                         required
                         className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
-                        placeholder="Örn: CSE101"
+                        placeholder="E.g., CSE101"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-semibold mb-2">Gün</label>
+                        <label className="block text-sm font-semibold mb-2">Day</label>
                         <select
                           name="day_of_week"
                           value={formData.day_of_week}
                           onChange={handleChange}
                           className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                         >
-                          <option value={1}>PAZARTESİ</option>
-                          <option value={2}>SALI</option>
-                          <option value={3}>ÇARŞAMBA</option>
-                          <option value={4}>PERŞEMBE</option>
-                          <option value={5}>CUMA</option>
+                          <option value={1}>MONDAY</option>
+                          <option value={2}>TUESDAY</option>
+                          <option value={3}>WEDNESDAY</option>
+                          <option value={4}>THURSDAY</option>
+                          <option value={5}>FRIDAY</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold mb-2">Başlangıç</label>
+                        <label className="block text-sm font-semibold mb-2">Start Time</label>
                         <select
                           name="start_time"
                           value={formData.start_time}
@@ -238,7 +238,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-semibold mb-2">Bitiş</label>
+                        <label className="block text-sm font-semibold mb-2">End Time</label>
                         <select
                           name="end_time"
                           value={formData.end_time}
@@ -251,7 +251,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold mb-2">Renk</label>
+                        <label className="block text-sm font-semibold mb-2">Color</label>
                         <input
                           type="color"
                           name="color_code"
@@ -262,13 +262,13 @@ const WeeklySchedule = ({ isDarkMode }) => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold mb-2">Konum</label>
+                      <label className="block text-sm font-semibold mb-2">Location</label>
                       <input
                         name="location"
                         value={formData.location}
                         onChange={handleChange}
                         className={`w-full px-4 py-3 rounded-xl border focus:border-blue-500 focus:outline-none transition-all shadow-sm ${isDarkMode ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-500'}`}
-                        placeholder="Örn: A-101"
+                        placeholder="E.g., A-101"
                       />
                     </div>
                     <div className="flex gap-3 pt-4">
@@ -277,13 +277,13 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         onClick={handleClose}
                         className={`flex-1 px-6 py-3 rounded-xl font-semibold border-2 transition-all ${isDarkMode ? 'border-slate-600 hover:border-slate-500 hover:bg-slate-700 bg-slate-700/30 text-slate-200' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-100 bg-transparent text-slate-700'}`}
                       >
-                        İptal
+                        Cancel
                       </button>
                       <button
                         type="submit"
                         className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
                       >
-                        Ekle
+                        Add
                       </button>
                     </div>
                   </form>

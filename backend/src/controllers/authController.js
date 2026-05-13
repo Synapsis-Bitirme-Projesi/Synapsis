@@ -214,7 +214,7 @@ const updateTheme = async (req, res) => {
 
 const addTask = async (req, res) => {
   try {
-    const { title, course, priority, description, due_date } = req.body;
+    const { title, course, priority, description, due_date, type } = req.body;
     const userId = req.user.userId;
 
     let course_id = course ? parseInt(course) : null;
@@ -222,15 +222,15 @@ const addTask = async (req, res) => {
       course_id = null;
     }
     const priority_val = (priority || 'medium').toLowerCase();
+    const type_val = type || 'Task';
 
-    // Eksik veri kontrolü (Validation)
     if (!title) {
       return res.status(400).json({ error: "Görev başlığı zorunludur." });
     }
 
     const newTask = await pool.query(
-      "INSERT INTO tasks (user_id, title, course_id, description, due_date, priority, status) VALUES ($1, $2, $3, $4, $5, $6, 'todo') RETURNING *",
-      [userId, title, course_id, description, due_date, priority_val]
+      "INSERT INTO tasks (user_id, title, course_id, description, due_date, priority, status, type) VALUES ($1, $2, $3, $4, $5, $6, 'todo', $7) RETURNING *",
+      [userId, title, course_id, description, due_date, priority_val, type_val]
     );
 
     res.status(201).json(newTask.rows[0]);
@@ -276,8 +276,41 @@ const deleteTask = async (req, res) => {
   }
 };
 
-// Bunları module.exports kısmına eklemeyi unutma:
-// module.exports kısmına eklemeyi unutma:
+const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    // Status-only update (toggle complete)
+    if (req.body.title === undefined) {
+      const { status } = req.body;
+      const result = await pool.query(
+        'UPDATE tasks SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
+        [status, id, userId]
+      );
+      if (result.rowCount === 0) return res.status(404).json({ error: "Task not found." });
+      return res.json(result.rows[0]);
+    }
+
+    // Full edit update
+    const { title, description, due_date, priority, type, course } = req.body;
+    let course_id = course ? parseInt(course) : null;
+    if (isNaN(course_id)) course_id = null;
+
+    const result = await pool.query(
+      `UPDATE tasks SET title=$1, description=$2, due_date=$3, priority=$4, type=$5, course_id=$6
+       WHERE id=$7 AND user_id=$8 RETURNING *`,
+      [title, description || null, due_date || null, (priority || 'medium').toLowerCase(), type || 'Task', course_id, id, userId]
+    );
+
+    if (result.rowCount === 0) return res.status(404).json({ error: "Task not found." });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Update Task Error:", err.message);
+    res.status(500).json({ error: "Failed to update task." });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -286,7 +319,8 @@ module.exports = {
   updateProfile,
   getTheme,
   updateTheme,
-  addTask,    // <--- Burada mutlaka olmalı
-  getTasks,    // <--- Burada mutlaka olmalı
-  deleteTask   // <--- Yeni ekledik
+  addTask,
+  getTasks,
+  deleteTask,
+  updateTask
 };

@@ -1,1 +1,0 @@
-register ve f5 atıldığındaki widget

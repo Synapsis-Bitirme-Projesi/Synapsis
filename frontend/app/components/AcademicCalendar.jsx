@@ -3,14 +3,24 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const AcademicCalendar = ({ isDarkMode }) => {
+const taskTypeColor = (type) => {
+  switch (type) {
+    case 'Assignment': return '#3B82F6';
+    case 'Quiz': return '#8B5CF6';
+    case 'Project': return '#F97316';
+    case 'Other': return '#6B7280';
+    default: return '#10B981';
+  }
+};
+
+const AcademicCalendar = ({ isDarkMode, onExamClick = null, tasks = [] }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [exams, setExams] = useState([]);
 
     // Takvim hesaplamaları
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
-    const monthNames = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
     // Pazartesi'den başlaması için ayar (JS'de 0 Pazar'dır)
     const startingDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
@@ -53,7 +63,7 @@ const AcademicCalendar = ({ isDarkMode }) => {
 
                 {/* Gün İsimleri */}
                 <div className="grid grid-cols-7 mb-4">
-                    {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(day => (
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                         <div key={day} className="text-center text-xs font-bold text-slate-400 uppercase tracking-widest py-2">
                             {day}
                         </div>
@@ -72,8 +82,8 @@ const AcademicCalendar = ({ isDarkMode }) => {
                         const day = i + 1;
                         const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                        // Bu güne ait sınavları bul (Veritabanındaki formatla eşleştir)
                         const dayExams = exams.filter(e => e.exam_date.slice(0,10) === dateString);
+                        const dayTasks = tasks.filter(t => t.due_date?.slice(0,10) === dateString);
                         const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
 
                         return (
@@ -84,16 +94,26 @@ const AcademicCalendar = ({ isDarkMode }) => {
                                     {day}
                                 </span>
 
-                                {/* Sınav Etiketleri */}
-                                <div className="mt-1 space-y-1 overflow-hidden">
+                                <div className="mt-1 space-y-0.5 overflow-hidden">
                                     {dayExams.map(exam => (
                                         <div
-                                            key={exam.id}
-                                            className="text-[9px] p-1 rounded-md text-white font-medium truncate shadow-sm"
+                                            key={`exam-${exam.id}`}
+                                            className={`text-[9px] p-1 rounded-md text-white font-medium truncate shadow-sm ${onExamClick ? 'cursor-pointer hover:opacity-75 active:scale-95' : ''}`}
                                             style={{ backgroundColor: exam.color_code }}
                                             title={exam.course_name}
+                                            onClick={(e) => { if (onExamClick) { e.stopPropagation(); onExamClick(exam); } }}
                                         >
                                             {exam.course_name}
+                                        </div>
+                                    ))}
+                                    {dayTasks.map(task => (
+                                        <div
+                                            key={`task-${task.id || task._id}`}
+                                            className="text-[9px] p-1 rounded-md text-white font-medium truncate shadow-sm"
+                                            style={{ backgroundColor: taskTypeColor(task.type) }}
+                                            title={task.title}
+                                        >
+                                            ✓ {task.title}
                                         </div>
                                     ))}
                                 </div>

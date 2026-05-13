@@ -10,9 +10,10 @@ const {
     updateProfile,
     getTheme,
     updateTheme,
-    addTask,    // <--- Yeni ekledik
+    addTask,
     getTasks,
-    deleteTask    // <--- Yeni ekledik
+    deleteTask,
+    updateTask
 } = require('../controllers/authController');
 
 // 2. Auth koruması sağlayan middleware
@@ -37,5 +38,6 @@ router.post('/tasks', protect, addTask);
 router.get('/tasks', protect, getTasks);
 // Mevcut rotaların altına ekle
 router.delete('/tasks/:id', protect, deleteTask);
+router.patch('/tasks/:id', protect, updateTask);
 
 module.exports = router;
