@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "@tiptap/extension-dropcursor": "^2.27.2",
+    "@tiptap/extension-focus": "^2.27.2",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/extension-placeholder": "^2.27.2",
+    "@tiptap/extension-strike": "^2.27.2",
+    "@tiptap/extension-underline": "^2.27.2",
+    "@tiptap/pm": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
+    "@tiptap/suggestion": "^2.27.2",
+    "next": "^14.2.3"
+  }
+}

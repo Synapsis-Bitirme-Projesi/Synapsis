@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db'); // Kendi DB bağlantı dosyanın yoluna göre düzelt
 const { protect } = require('../middleware/authMiddleware'); // İçerideki gerçek isim neyse o// 1. CREATE: Yeni ders ekleme (POST /api/courses)
-router.post('/', protect, async (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const { course_name, course_code, day_of_week, start_time, end_time, location, color_code } = req.body;
-        const userId = req.user.id || req.user.userId; // Token'dan gelen kullanıcı ID'si
+        const userId = 1;
 
         const newCourse = await pool.query(
-            `INSERT INTO course_schedules 
+`INSERT INTO courses 
             (user_id, course_name, course_code, day_of_week, start_time, end_time, location, color_code) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
             [userId, course_name, course_code, day_of_week, start_time, end_time, location, color_code || '#3B82F6']
@@ -22,11 +22,11 @@ router.post('/', protect, async (req, res) => {
 });
 
 // 2. READ: Kullanıcının tüm ders programını getirme (GET /api/courses)
-router.get('/', protect, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
-        const userId = req.user.userId; // jwt.io'da gördüğümüz doğru isim
+        const userId = 1;
         const courses = await pool.query(
-            "SELECT * FROM course_schedules WHERE user_id = $1 ORDER BY day_of_week ASC, start_time ASC",
+            "SELECT * FROM courses WHERE user_id = $1 ORDER BY day_of_week ASC, start_time ASC",
             [userId] // Artık $1 olduğu için bu hata vermeyecek
         );
         res.json(courses.rows);
@@ -44,7 +44,7 @@ router.put('/:id', protect, async (req, res) => {
         const userId = req.user.userId;
 
         const updateCourse = await pool.query(
-            `UPDATE course_schedules SET 
+            `UPDATE courses SET 
             course_name = $1, course_code = $2, day_of_week = $3, 
             start_time = $4, end_time = $5, location = $6, color_code = $7 
             WHERE id = $8 AND user_id = $9 RETURNING *`,
@@ -69,7 +69,7 @@ router.delete('/:id', protect, async (req, res) => {
         const userId = req.user.userId;
 
         const deleteCourse = await pool.query(
-            "DELETE FROM course_schedules WHERE id = $1 AND user_id = $2 RETURNING *",
+            "DELETE FROM courses WHERE id = $1 AND user_id = $2 RETURNING *",
             [id, userId]
         );
 

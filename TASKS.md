@@ -24,9 +24,9 @@ Status: `todo` | `in-progress` | `done`
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
 | Auth API endpoints (register, login, profile)      | Teammate A | todo   |
-| Dashboard layout + widget container                | Teammate B | todo   |
-| Widget toggle/reorder functionality                | Teammate B | todo   |
-| Today's Classes, Upcoming Exams, Urgent Tasks widgets | Teammate C | todo |
+| Dashboard layout + widget container                | Teammate B | done   |
+| Widget toggle/reorder functionality                | Teammate B | done |
+| Today's Classes, Upcoming Exams, Urgent Tasks widgets | Teammate C | done |
 
 ---
 
@@ -35,10 +35,10 @@ Status: `todo` | `in-progress` | `done`
 
 | Task                                               | Owner      | Status |
 |----------------------------------------------------|------------|--------|
-| Course schedule API endpoints (CRUD)               | Teammate A | todo   |
-| Exam date / calendar API endpoints                 | Teammate A | todo   |
-| Weekly course schedule creator UI                  | Teammate B | todo   |
-| Monthly/weekly calendar views UI                   | Teammate B | todo   |
+| Course schedule API endpoints (CRUD)               | Teammate A | done   |
+| Exam date / calendar API endpoints                 | Teammate A | done   |
+| Weekly course schedule creator UI                  | Teammate B | done   |
+| Monthly/weekly calendar views UI                   | Teammate B | done   |
 
 ---
 
