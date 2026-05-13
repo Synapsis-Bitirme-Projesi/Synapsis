@@ -9,6 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tiptap/extension-focus": "^3.23.2",
+    "@tiptap/extension-link": "^3.23.2",
+    "@tiptap/extension-placeholder": "^3.23.2",
+    "@tiptap/extension-strike": "^3.23.2",
+    "@tiptap/extension-underline": "^3.23.2",
+    "@tiptap/react": "^3.23.2",
+    "@tiptap/starter-kit": "^3.23.2",
+    "@tiptap/suggestion": "^3.23.2",
     "axios": "^1.16.0",
     "lucide-react": "^1.14.0",
     "next": "14.2.3",
