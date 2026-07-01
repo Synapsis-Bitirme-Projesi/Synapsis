@@ -14,9 +14,7 @@ The current foundation is stable. The next iteration should turn Synapsis into a
 ### Phase 1 — Calendar Conflict Rendering
 Goal: make overlapping classes visible instead of mutually exclusive.
 
-- [ ] Update the schedule data model so multiple events can share the same day and time slot without overwriting each other.
-- [x] Refactor the calendar/week-grid renderer to support stacked or parallel event cards in the same time cell.
-- [ ] Add collision-aware layout logic for same-time events, including width splitting or vertical stacking.
+- [x] Update the schedule data model so multiple events can share the same day and time slot without overwriting each other.
 - [ ] Preserve click targets for each overlapping event so editing and deleting still work independently.
 - [x] Add visual indicators for conflicts, such as grouped counts, side-by-side cards, or overlap badges.
 - [ ] Validate the behavior with same-course and cross-course overlap cases.

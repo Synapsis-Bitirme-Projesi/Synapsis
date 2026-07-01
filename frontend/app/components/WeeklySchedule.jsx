@@ -22,6 +22,26 @@ const WeeklySchedule = ({ isDarkMode }) => {
       return Math.max(span * 80 - 8, slotCourses.length * 56);
     };
 
+    const buildScheduleGrid = (courseList) => {
+      return courseList.reduce((grid, course) => {
+        const dayKey = course.day_of_week;
+        const timeKey = formatTime(course.start_time);
+
+        if (!grid[dayKey]) {
+          grid[dayKey] = {};
+        }
+
+        if (!grid[dayKey][timeKey]) {
+          grid[dayKey][timeKey] = [];
+        }
+
+        grid[dayKey][timeKey].push(course);
+        return grid;
+      }, {});
+    };
+
+    const scheduleGrid = buildScheduleGrid(courses);
+
     const [formData, setFormData] = useState({
       course_name: '',
       course_code: '',
@@ -138,10 +158,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
 
                                     {/* Gün Hücreleri */}
                                     {days.map((_, dayIdx) => {
-                                            const startingCourses = courses.filter(c =>
-                                                c.day_of_week === (dayIdx + 1) &&
-                                                formatTime(c.start_time) === time
-                                            );
+                                        const startingCourses = scheduleGrid[dayIdx + 1]?.[time] || [];
 
                                         let blockHeight = null;
                                             if (startingCourses.length > 0) {
