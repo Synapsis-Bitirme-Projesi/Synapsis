@@ -17,7 +17,7 @@ Goal: make overlapping classes visible instead of mutually exclusive.
 - [x] Update the schedule data model so multiple events can share the same day and time slot without overwriting each other.
 - [x] Preserve click targets for each overlapping event so editing and deleting still work independently.
 - [x] Add visual indicators for conflicts, such as grouped counts, side-by-side cards, or overlap badges.
-- [ ] Validate the behavior with same-course and cross-course overlap cases.
+- [x] Validate the behavior with same-course and cross-course overlap cases.
 
 ### Phase 2 — AI Study Assistant
 Goal: add an AI chatbot that understands the user’s courses and notes.

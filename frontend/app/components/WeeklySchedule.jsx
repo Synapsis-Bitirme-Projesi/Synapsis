@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { buildScheduleGrid, formatTime, getCourseSpanHeight } from './scheduleGrid.mjs';
 
 const WeeklySchedule = ({ isDarkMode }) => {
     const [courses, setCourses] = useState([]);
@@ -9,37 +10,6 @@ const WeeklySchedule = ({ isDarkMode }) => {
   const [editingCourse, setEditingCourse] = useState(null);
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
     const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
-
-    const formatTime = (time) => time?.slice(0, 5) || '';
-
-    const getCourseSpanHeight = (slotTime, slotCourses) => {
-      const startIdx = timeSlots.indexOf(slotTime);
-      const furthestEndIdx = slotCourses.reduce((maxIdx, course) => {
-        const endIdx = timeSlots.indexOf(formatTime(course.end_time));
-        return endIdx > maxIdx ? endIdx : maxIdx;
-      }, startIdx + 1);
-
-      const span = furthestEndIdx > startIdx ? furthestEndIdx - startIdx : 1;
-      return Math.max(span * 80 - 8, slotCourses.length * 56);
-    };
-
-    const buildScheduleGrid = (courseList) => {
-      return courseList.reduce((grid, course) => {
-        const dayKey = course.day_of_week;
-        const timeKey = formatTime(course.start_time);
-
-        if (!grid[dayKey]) {
-          grid[dayKey] = {};
-        }
-
-        if (!grid[dayKey][timeKey]) {
-          grid[dayKey][timeKey] = [];
-        }
-
-        grid[dayKey][timeKey].push(course);
-        return grid;
-      }, {});
-    };
 
     const scheduleGrid = buildScheduleGrid(courses);
 
