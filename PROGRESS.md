@@ -1,7 +1,7 @@
 # Synapsis — Progress Tracker
 
 ## Current Phase
-MVP Complete — all four epics (Dashboard, Calendar, Tasks, Notes) are implemented and functional.
+Post-MVP Expansion — core modules are stable, and the product is moving into smart learning and workflow enhancement features.
 
 ## Build Status
 ✅ Frontend build passes (`npm run build` from `/frontend`)  
@@ -65,6 +65,35 @@ MVP Complete — all four epics (Dashboard, Calendar, Tasks, Notes) are implemen
 - [x] Dark mode consistent across all pages
 - [x] All UI text in English
 - [x] Profile page: edit name and email
+
+---
+
+## Planned Features (Based on New Requirements)
+
+### Calendar Enhancements
+- [ ] If two classes are scheduled at the same time slot, both classes should be displayed in the calendar/timetable view
+- [ ] Improve overlapping-event visualization so conflicts are clear and still readable
+
+### AI Chatbot for Course Assistance
+- [ ] Add AI chatbot support for each selected course
+- [ ] Chatbot should generate example questions for a specific course
+- [ ] Chatbot should generate short summaries for a specific course
+- [ ] Chatbot should support quick-study outputs such as fast review cards/flashcards
+
+### Notes → Course Linking
+- [ ] Add "Save note to course" functionality in the notes module
+- [ ] When linking a note to a course, show a confirmation popup before saving
+- [ ] Allow AI features to use course-linked notes as source material
+
+### Whiteboard-Style Notes Experience
+- [ ] Explore/implement whiteboard mode for note-taking (freeform note structure and visual layout)
+- [ ] Ensure whiteboard notes can still be persisted and linked to courses
+
+### AI from Notes (Course-Aware Generation)
+- [ ] From notes taken in Course A, AI should be able to generate:
+  - [ ] Example questions
+  - [ ] Short summaries
+  - [ ] Fast reading cards / study cards
 
 ---
 
