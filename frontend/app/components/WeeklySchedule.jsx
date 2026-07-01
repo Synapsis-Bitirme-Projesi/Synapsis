@@ -9,6 +9,19 @@ const WeeklySchedule = ({ isDarkMode }) => {
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
     const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
+    const formatTime = (time) => time?.slice(0, 5) || '';
+
+    const getCourseSpanHeight = (slotTime, slotCourses) => {
+      const startIdx = timeSlots.indexOf(slotTime);
+      const furthestEndIdx = slotCourses.reduce((maxIdx, course) => {
+        const endIdx = timeSlots.indexOf(formatTime(course.end_time));
+        return endIdx > maxIdx ? endIdx : maxIdx;
+      }, startIdx + 1);
+
+      const span = furthestEndIdx > startIdx ? furthestEndIdx - startIdx : 1;
+      return Math.max(span * 80 - 8, slotCourses.length * 56);
+    };
+
     const [formData, setFormData] = useState({
       course_name: '',
       course_code: '',
@@ -125,41 +138,63 @@ const WeeklySchedule = ({ isDarkMode }) => {
 
                                     {/* Gün Hücreleri */}
                                     {days.map((_, dayIdx) => {
-                                        const startingCourse = courses.find(c =>
-                                            c.day_of_week === (dayIdx + 1) &&
-                                            c.start_time.slice(0, 5) === time
-                                        );
+                                            const startingCourses = courses.filter(c =>
+                                                c.day_of_week === (dayIdx + 1) &&
+                                                formatTime(c.start_time) === time
+                                            );
 
                                         let blockHeight = null;
-                                        if (startingCourse) {
-                                            const endTime = startingCourse.end_time?.slice(0, 5);
-                                            const startIdx = timeSlots.indexOf(time);
-                                            const endIdx = timeSlots.indexOf(endTime);
-                                            const span = endIdx > startIdx ? endIdx - startIdx : 1;
-                                            blockHeight = span * 80 - 8;
+                                            if (startingCourses.length > 0) {
+                                                blockHeight = getCourseSpanHeight(time, startingCourses);
                                         }
 
                                         return (
                                             <div key={dayIdx} className={`border-l transition-colors ${isDarkMode ? 'border-slate-800' : 'border-slate-100'
-                                                } p-1 relative hover:bg-blue-500/5 transition-colors`} style={{ overflow: startingCourse ? 'visible' : undefined }}>
-                                                {startingCourse && (
+                                                    } p-1 relative hover:bg-blue-500/5 transition-colors`} style={{ overflow: startingCourses.length > 0 ? 'visible' : undefined }}>
+                                                    {startingCourses.length > 0 && (
                                                     <div
-                                                        className="absolute inset-x-1 top-1 rounded-lg p-3 shadow-md border-l-4 transition-all hover:scale-[1.02] cursor-pointer"
+                                                            className="absolute inset-x-1 top-1 rounded-lg p-2 shadow-md border-l-4 transition-all hover:scale-[1.02] cursor-pointer flex flex-col gap-2"
                                                         style={{
-                                                            backgroundColor: isDarkMode ? `${startingCourse.color_code}35` : `${startingCourse.color_code}15`,
-                                                            borderColor: startingCourse.color_code,
-                                                            color: isDarkMode ? '#f1f5f9' : startingCourse.color_code,
+                                                                backgroundColor: isDarkMode ? `${startingCourses[0].color_code}35` : `${startingCourses[0].color_code}15`,
+                                                                borderColor: startingCourses[0].color_code,
+                                                                color: isDarkMode ? '#f1f5f9' : startingCourses[0].color_code,
                                                             height: `${blockHeight}px`,
                                                             zIndex: 10
                                                         }}
                                                     >
-                                                        <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
-                                                            {startingCourse.course_name}
-                                                        </div>
-                                                        <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold">
-                                                            <span>{startingCourse.course_code}</span>
-                                                            <span className="opacity-50">•</span>
-                                                            <span>{startingCourse.location}</span>
+                                                            {startingCourses.length > 1 && (
+                                                              <div className="self-start rounded-full bg-slate-950/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                                                                {startingCourses.length} overlapping
+                                                              </div>
+                                                            )}
+
+                                                            <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
+                                                              {startingCourses.map((course, courseIdx) => (
+                                                                <div
+                                                                  key={`${course.id || course.course_code}-${course.start_time}-${courseIdx}`}
+                                                                  className="flex-1 min-h-0 rounded-md px-2 py-1.5 border overflow-hidden"
+                                                                  style={{
+                                                                    backgroundColor: isDarkMode ? `${course.color_code}1f` : `${course.color_code}12`,
+                                                                    borderColor: `${course.color_code}55`,
+                                                                    color: isDarkMode ? '#f8fafc' : course.color_code,
+                                                                  }}
+                                                                >
+                                                                  <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
+                                                                    {course.course_name}
+                                                                  </div>
+                                                                  <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold flex-wrap">
+                                                                    <span>{course.course_code}</span>
+                                                                    <span className="opacity-50">•</span>
+                                                                    <span>{formatTime(course.start_time)}-{formatTime(course.end_time)}</span>
+                                                                    {course.location && (
+                                                                      <>
+                                                                        <span className="opacity-50">•</span>
+                                                                        <span>{course.location}</span>
+                                                                      </>
+                                                                    )}
+                                                                  </div>
+                                                                </div>
+                                                              ))}
                                                         </div>
                                                     </div>
                                                 )}
