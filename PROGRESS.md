@@ -1,7 +1,11 @@
 # Synapsis — Roadmap
 
 ## Current Phase
+<<<<<<< HEAD
 Post-MVP product expansion focused on calendar conflict handling, AI assistance, and connected note workflows.
+=======
+Post-MVP Expansion — core modules are stable, and the product is moving into smart learning and workflow enhancement features.
+>>>>>>> 2fe24e9ccf47964dc4c69183d04066c4a8ff602e
 
 ## Product Direction
 The current foundation is stable. The next iteration should turn Synapsis into a smarter academic workspace with three priorities:
@@ -55,12 +59,45 @@ Goal: evolve the note editor into a visual whiteboard for faster study workflows
 ### Phase 5 — AI Study Outputs
 Goal: turn notes into course-specific learning assets.
 
+<<<<<<< HEAD
 - [ ] Generate example questions from a selected course’s notes.
 - [ ] Generate short summaries optimized for rapid review.
 - [ ] Generate flashcards or quick-read cards from the same content source.
 - [ ] Let users choose output format, depth, and tone per course.
 - [ ] Add citations or source references back to the original note blocks when possible.
 - [ ] Cache generated study sets to avoid rerunning the same prompt unnecessarily.
+=======
+## Planned Features (Based on New Requirements)
+
+### Calendar Enhancements
+- [ ] If two classes are scheduled at the same time slot, both classes should be displayed in the calendar/timetable view
+- [ ] Improve overlapping-event visualization so conflicts are clear and still readable
+
+### AI Chatbot for Course Assistance
+- [ ] Add AI chatbot support for each selected course
+- [ ] Chatbot should generate example questions for a specific course
+- [ ] Chatbot should generate short summaries for a specific course
+- [ ] Chatbot should support quick-study outputs such as fast review cards/flashcards
+
+### Notes → Course Linking
+- [ ] Add "Save note to course" functionality in the notes module
+- [ ] When linking a note to a course, show a confirmation popup before saving
+- [ ] Allow AI features to use course-linked notes as source material
+
+### Whiteboard-Style Notes Experience
+- [ ] Explore/implement whiteboard mode for note-taking (freeform note structure and visual layout)
+- [ ] Ensure whiteboard notes can still be persisted and linked to courses
+
+### AI from Notes (Course-Aware Generation)
+- [ ] From notes taken in Course A, AI should be able to generate:
+  - [ ] Example questions
+  - [ ] Short summaries
+  - [ ] Fast reading cards / study cards
+
+---
+
+## Known Issues / Not Yet Implemented
+>>>>>>> 2fe24e9ccf47964dc4c69183d04066c4a8ff602e
 
 ### Phase 6 — Polish and Validation
 Goal: make the new features reliable before release.
