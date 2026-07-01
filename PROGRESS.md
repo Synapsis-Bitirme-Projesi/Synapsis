@@ -1,92 +1,91 @@
-# Synapsis — Progress Tracker
+# Synapsis — Roadmap
 
 ## Current Phase
-MVP Complete — all four epics (Dashboard, Calendar, Tasks, Notes) are implemented and functional.
+Post-MVP product expansion focused on calendar conflict handling, AI assistance, and connected note workflows.
 
-## Build Status
-✅ Frontend build passes (`npm run build` from `/frontend`)  
-⚠️ Backend: run `npm run dev` from `/backend` — requires PostgreSQL connection and `.env` file  
-⚠️ DB migration required before first run: `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'Task';`
+## Product Direction
+The current foundation is stable. The next iteration should turn Synapsis into a smarter academic workspace with three priorities:
+1. Calendar entries must support overlapping events without hiding conflicts.
+2. Notes should become course-aware and reusable across the rest of the app.
+3. AI features should generate course-specific study help from the user’s own content.
 
----
+## Delivery Plan
 
-## What Is Working
+### Phase 1 — Calendar Conflict Rendering
+Goal: make overlapping classes visible instead of mutually exclusive.
 
-### Foundation
-- [x] DB schema: users, courses, tasks, notes tables
-- [x] Backend project structure (Express, pg, JWT)
-- [x] Frontend Next.js 14 setup (App Router, Tailwind CSS, TypeScript)
-- [x] User registration and login with NextAuth credentials provider
-- [x] JWT stored in session and synced to localStorage for API calls
-- [x] Auth guard: sidebar and protected routes hidden from unauthenticated users
-- [x] Public landing page at `/` with Sign In / Sign Up links
-- [x] Auth flash and theme flash prevention (inline script + suppressHydrationWarning)
+- [ ] Update the schedule data model so multiple events can share the same day and time slot without overwriting each other.
+- [ ] Refactor the calendar/week-grid renderer to support stacked or parallel event cards in the same time cell.
+- [ ] Add collision-aware layout logic for same-time events, including width splitting or vertical stacking.
+- [ ] Preserve click targets for each overlapping event so editing and deleting still work independently.
+- [ ] Add visual indicators for conflicts, such as grouped counts, side-by-side cards, or overlap badges.
+- [ ] Validate the behavior with same-course and cross-course overlap cases.
 
-### Dashboard
-- [x] Greeting with logged-in user name and today's date
-- [x] "Classes today" count — dynamic, based on actual course schedule; hidden on weekends
-- [x] Upcoming Deadlines card — shows all types (Exam, Assignment, Quiz, Project, Task) with due dates, sorted by date
-- [x] Urgent Tasks card — shows incomplete tasks sorted by priority (High first)
-- [x] Weekly Schedule widget — displays course timetable, supports add/edit/delete from grid
-- [x] Academic Calendar on dashboard — shows exams and tasks with due dates
-- [x] Dark mode toggle — persisted to DB and localStorage
+### Phase 2 — AI Study Assistant
+Goal: add an AI chatbot that understands the user’s courses and notes.
 
-### Courses
-- [x] Course list with color-coded cards
-- [x] Add, edit, delete courses via modal
-- [x] Fields: name, code, day, start/end time, location, color
+- [ ] Introduce a chatbot UI surface that can run inside a course view or a dedicated assistant panel.
+- [ ] Define a course-scoped context payload that includes syllabus metadata, linked notes, and recent study material.
+- [ ] Add prompt templates for three core modes: question examples, concise summaries, and quick-review cards.
+- [ ] Expose a course selector so the assistant can generate output for a specific class.
+- [ ] Support note-aware generation, where the chatbot can transform saved notes into study artifacts.
+- [ ] Store generated outputs as reusable artifacts so the user can revisit them later.
+- [ ] Add streaming responses and loading states to keep the assistant usable for longer generations.
 
-### Tasks
-- [x] Unified "Add New Item" form with Type select (Task, Exam, Assignment, Quiz, Project, Other)
-- [x] Type = Exam: submits to `/api/exams`, appears on calendar as colored exam badge
-- [x] Type = other: submits to `/api/auth/tasks`, appears on calendar by due date
-- [x] Course dropdown populated from real user courses (not hardcoded)
-- [x] Priority (High/Medium/Low), due date, description fields
-- [x] Task list with type badge, course name, priority badge, due date
-- [x] Overdue badge for incomplete tasks past their due date
-- [x] Mark task complete / undo (toggle)
-- [x] Edit task via pencil icon — modal pre-filled with current values, calls PATCH
-- [x] Delete task with confirmation
+### Phase 3 — Notes to Course Linking
+Goal: let a note be attached to a course with explicit user confirmation.
 
-### Calendar
-- [x] Monthly calendar view showing all academic items with dates
-- [x] Exams displayed with custom color badge; click to open edit/delete modal
-- [x] Tasks with due dates displayed with type-based color coding
-- [x] Navigate between months
+- [ ] Add a note-to-course relation in the data model, either as a foreign key or a join table depending on whether notes can belong to multiple courses.
+- [ ] Add a confirmation pop-up before linking a note to a course.
+- [ ] Show the linked course in the notes list and editor header.
+- [ ] Add an unlink action with a separate confirmation flow.
+- [ ] Make linked notes available to the AI assistant so course-based generation can use real note content.
+- [ ] Keep the linking flow reversible so the note remains usable even if the user changes courses later.
 
-### Notes
-- [x] Note list sidebar (create, select, delete)
-- [x] Tiptap rich text editor with auto-save (800ms debounce)
-- [x] Slash commands: Heading 1, Heading 2, Bullet list, Numbered list
-- [x] Notes persisted to backend `/api/notes`
+### Phase 4 — Whiteboard Notes Experience
+Goal: evolve the note editor into a visual whiteboard for faster study workflows.
 
-### Auth & UX
-- [x] Logout confirmation modal (no duplicate prompts)
-- [x] Dark mode consistent across all pages
-- [x] All UI text in English
-- [x] Profile page: edit name and email
+- [ ] Evaluate a whiteboard canvas model that supports freeform text blocks, drag/drop nodes, and lightweight drawing.
+- [ ] Preserve text editing from the current notes flow while adding spatial organization.
+- [ ] Support study structures such as concept maps, bullet clusters, and quick sketch annotations.
+- [ ] Ensure the whiteboard content can still be autosaved and synchronized to the backend.
+- [ ] Add export or conversion paths so a whiteboard note can still feed the AI summary and flashcard generators.
+- [ ] Keep the interaction model simple enough for mobile and tablet use where possible.
 
----
+### Phase 5 — AI Study Outputs
+Goal: turn notes into course-specific learning assets.
 
-## Known Issues / Not Yet Implemented
+- [ ] Generate example questions from a selected course’s notes.
+- [ ] Generate short summaries optimized for rapid review.
+- [ ] Generate flashcards or quick-read cards from the same content source.
+- [ ] Let users choose output format, depth, and tone per course.
+- [ ] Add citations or source references back to the original note blocks when possible.
+- [ ] Cache generated study sets to avoid rerunning the same prompt unnecessarily.
 
-- [ ] Weekly Schedule "Add course" button in dashboard grid has no modal (add courses via the Courses page instead)
-- [ ] Mobile responsiveness not fully polished
-- [ ] Usability testing not yet conducted
-- [ ] Deployment not yet configured
+### Phase 6 — Polish and Validation
+Goal: make the new features reliable before release.
 
----
+- [ ] Add regression tests for calendar overlap rendering.
+- [ ] Add API tests for note-course linking and AI generation endpoints.
+- [ ] Verify empty states, loading states, and error states across all new surfaces.
+- [ ] Review performance for large note sets and dense calendars.
+- [ ] Confirm the new flows work on desktop and mobile breakpoints.
 
-## Stack
+## Current Stack
 - Frontend: Next.js 14 / Tailwind CSS / NextAuth / Tiptap
 - Backend: Node.js / Express / PostgreSQL (pg)
 - Auth: NextAuth credentials + JWT
-- Deployment target: Vercel (frontend), Render/Railway (backend + DB)
+- AI layer: planned integration for course-aware prompt generation and artifact storage
+
+## Near-Term Risks
+- Calendar overlap rendering may require a deeper scheduler layout rewrite than a simple UI patch.
+- AI features will need a clear data boundary so prompts only use authorized course and note content.
+- Whiteboard notes may require a new storage format if the current rich-text structure is too limited.
 
 ## Branch
-feature/complete-mvp
+main
 
-## How to Run Locally
+## Local Run
 ```bash
 # Backend (terminal 1)
 cd backend
