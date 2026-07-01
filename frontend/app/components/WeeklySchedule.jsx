@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 
 const WeeklySchedule = ({ isDarkMode }) => {
     const [courses, setCourses] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI'];
     const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
@@ -72,7 +73,36 @@ const WeeklySchedule = ({ isDarkMode }) => {
 
     const handleClose = () => {
       setIsModalOpen(false);
+      setEditingCourse(null);
       setError('');
+    };
+
+    const openAddModal = () => {
+      setEditingCourse(null);
+      setFormData({
+        course_name: '',
+        course_code: '',
+        day_of_week: 1,
+        start_time: '08:00',
+        end_time: '09:00',
+        location: '',
+        color_code: '#3B82F6'
+      });
+      setIsModalOpen(true);
+    };
+
+    const openEditModal = (course) => {
+      setEditingCourse(course);
+      setFormData({
+        course_name: course.course_name || '',
+        course_code: course.course_code || '',
+        day_of_week: course.day_of_week || 1,
+        start_time: formatTime(course.start_time) || '08:00',
+        end_time: formatTime(course.end_time) || '09:00',
+        location: course.location || '',
+        color_code: course.color_code || '#3B82F6'
+      });
+      setIsModalOpen(true);
     };
 
     const handleChange = (e) => {
@@ -83,10 +113,17 @@ const WeeklySchedule = ({ isDarkMode }) => {
       e.preventDefault();
       try {
         const token = localStorage.getItem('token');
-        await axios.post('http://localhost:5000/api/courses', formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        if (editingCourse) {
+          await axios.put(`http://localhost:5000/api/courses/${editingCourse.id}`, formData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        } else {
+          await axios.post('http://localhost:5000/api/courses', formData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
         setIsModalOpen(false);
+        setEditingCourse(null);
         setFormData({
           course_name: '',
           course_code: '',
@@ -101,6 +138,21 @@ const WeeklySchedule = ({ isDarkMode }) => {
           console.error('Error adding course:', err);
           setError(err.response?.data?.error || err.message || 'Failed to add course. Please try again.');
         }
+    };
+
+    const handleDelete = async (course) => {
+      if (!window.confirm(`Delete ${course.course_name}?`)) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`http://localhost:5000/api/courses/${course.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCourses(prev => prev.filter(item => item.id !== course.id));
+      } catch (err) {
+        console.error('Error deleting course:', err);
+        setError(err.response?.data?.error || err.message || 'Failed to delete course. Please try again.');
+      }
     };
 
     return (
@@ -122,7 +174,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         </p>
                     </div>
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                      onClick={openAddModal}
                         className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-bold text-white flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20 active:scale-95"
                     >
                         <Plus size={18} />
@@ -189,26 +241,64 @@ const WeeklySchedule = ({ isDarkMode }) => {
                                                               {startingCourses.map((course, courseIdx) => (
                                                                 <div
                                                                   key={`${course.id || course.course_code}-${course.start_time}-${courseIdx}`}
-                                                                  className="flex-1 min-h-0 rounded-md px-2 py-1.5 border overflow-hidden"
+                                                                  role="button"
+                                                                  tabIndex={0}
+                                                                  onClick={() => openEditModal(course)}
+                                                                  onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                                      e.preventDefault();
+                                                                      openEditModal(course);
+                                                                    }
+                                                                  }}
+                                                                  className="group flex-1 min-h-0 rounded-md px-2 py-1.5 border overflow-hidden cursor-pointer transition-all hover:brightness-[1.03] focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                                                                   style={{
                                                                     backgroundColor: isDarkMode ? `${course.color_code}1f` : `${course.color_code}12`,
                                                                     borderColor: `${course.color_code}55`,
                                                                     color: isDarkMode ? '#f8fafc' : course.color_code,
                                                                   }}
                                                                 >
-                                                                  <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
-                                                                    {course.course_name}
-                                                                  </div>
-                                                                  <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold flex-wrap">
-                                                                    <span>{course.course_code}</span>
-                                                                    <span className="opacity-50">•</span>
-                                                                    <span>{formatTime(course.start_time)}-{formatTime(course.end_time)}</span>
-                                                                    {course.location && (
-                                                                      <>
+                                                                  <div className="flex items-start justify-between gap-2">
+                                                                    <div className="min-w-0">
+                                                                      <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
+                                                                        {course.course_name}
+                                                                      </div>
+                                                                      <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold flex-wrap">
+                                                                        <span>{course.course_code}</span>
                                                                         <span className="opacity-50">•</span>
-                                                                        <span>{course.location}</span>
-                                                                      </>
-                                                                    )}
+                                                                        <span>{formatTime(course.start_time)}-{formatTime(course.end_time)}</span>
+                                                                        {course.location && (
+                                                                          <>
+                                                                            <span className="opacity-50">•</span>
+                                                                            <span>{course.location}</span>
+                                                                          </>
+                                                                        )}
+                                                                      </div>
+                                                                    </div>
+
+                                                                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                                                      <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                          e.stopPropagation();
+                                                                          openEditModal(course);
+                                                                        }}
+                                                                        className="rounded-full bg-white/70 p-1 text-slate-700 shadow-sm hover:bg-white"
+                                                                        aria-label={`Edit ${course.course_name}`}
+                                                                      >
+                                                                        <Pencil size={10} />
+                                                                      </button>
+                                                                      <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                          e.stopPropagation();
+                                                                          handleDelete(course);
+                                                                        }}
+                                                                        className="rounded-full bg-white/70 p-1 text-rose-600 shadow-sm hover:bg-rose-50"
+                                                                        aria-label={`Delete ${course.course_name}`}
+                                                                      >
+                                                                        <Trash2 size={10} />
+                                                                      </button>
+                                                                    </div>
                                                                   </div>
                                                                 </div>
                                                               ))}
@@ -229,7 +319,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
                 <div className={`w-full max-w-md p-6 rounded-3xl shadow-2xl border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 shadow-black/10'}`}>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-2xl font-bold">Add New Course</h3>
+                    <h3 className="text-2xl font-bold">{editingCourse ? 'Edit Course' : 'Add New Course'}</h3>
                     <button
                       onClick={handleClose}
                       className={`p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all ${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900'}`}
@@ -344,7 +434,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         type="submit"
                         className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all"
                       >
-                        Add
+                        {editingCourse ? 'Save' : 'Add'}
                       </button>
                     </div>
                   </form>

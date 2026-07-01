@@ -15,7 +15,7 @@ The current foundation is stable. The next iteration should turn Synapsis into a
 Goal: make overlapping classes visible instead of mutually exclusive.
 
 - [x] Update the schedule data model so multiple events can share the same day and time slot without overwriting each other.
-- [ ] Preserve click targets for each overlapping event so editing and deleting still work independently.
+- [x] Preserve click targets for each overlapping event so editing and deleting still work independently.
 - [x] Add visual indicators for conflicts, such as grouped counts, side-by-side cards, or overlap badges.
 - [ ] Validate the behavior with same-course and cross-course overlap cases.
 
