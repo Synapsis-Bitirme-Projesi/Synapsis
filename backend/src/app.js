@@ -1,5 +1,4 @@
-require('dotenv').config();
-// require('./config/initTables'); // Temporarily disabled - syntax error in initTables.js
+require('dotenv').config();// require('./config/initTables'); // Temporarily disabled - syntax error in initTables.js
 const express = require('express');
 const cors = require('cors'); // 1. CORS'u içeri al
 const authRoutes = require('./routes/authRoutes');

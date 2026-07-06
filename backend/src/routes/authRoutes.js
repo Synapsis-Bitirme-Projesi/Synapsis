@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-// 1. Controller'dan tüm fonksiyonları (yeni eklediklerimiz dahil) çekiyoruz
+// 1. Auth & Task Controller Fonksiyonları
 const {
     register,
     login,
@@ -16,7 +16,14 @@ const {
     updateTask
 } = require('../controllers/authController');
 
-// 2. Auth koruması sağlayan middleware
+// 2. AI Controller Fonksiyonları
+const {
+    streamAIResponse,
+    saveArtifact,
+    getArtifacts
+} = require('../controllers/aiController');
+
+// 3. Middleware
 const { protect } = require('../middleware/authMiddleware');
 
 // --- Auth Rotaları ---
@@ -33,11 +40,14 @@ router.get('/settings/theme', getTheme);
 router.post('/settings/theme', protect, updateTheme);
 
 // --- Görev (Task) Rotaları ---
-// Frontend'den axios.post('/api/auth/tasks') ve axios.get('/api/auth/tasks') ile ulaşırsın
 router.post('/tasks', protect, addTask);
 router.get('/tasks', protect, getTasks);
-// Mevcut rotaların altına ekle
 router.delete('/tasks/:id', protect, deleteTask);
 router.patch('/tasks/:id', protect, updateTask);
+
+// --- AI Asistan & Artefakt Rotaları ---
+router.post('/ai/chat', protect, streamAIResponse);           // Chat Akışı (Streaming)
+router.post('/ai/artifacts', protect, saveArtifact);     // Çıktı Kaydetme
+router.get('/ai/artifacts', protect, getArtifacts);       // Kayıtlı Çıktıları Listeleme
 
 module.exports = router;

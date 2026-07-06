@@ -3,6 +3,7 @@ import { useSession, signOut } from "next-auth/react";
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import AssistantPanel from "app/components/AssistantPanel";
 import {
   LayoutDashboard,
   CheckSquare,
@@ -10,7 +11,6 @@ import {
   BookOpen,
   Calendar as CalendarIcon,
   FileText,
-  Settings,
   GraduationCap
 } from "lucide-react";
 import AuthProvider from "./components/SessionProvider";
@@ -18,12 +18,9 @@ import "./globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    // suppressHydrationWarning: the inline script below adds the "dark" class before
-    // React hydrates, so the server-rendered HTML won't have it — that's expected.
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Runs synchronously before first paint: applies dark class from localStorage
-            immediately so there is no light-mode flash when dark mode was previously set. */}
+        {/* Runs synchronously before first paint: applies dark class from localStorage */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{if(localStorage.getItem('synapsis-theme')==='dark')document.documentElement.classList.add('dark');}catch(e){}})();` }} />
       </head>
       <body className="antialiased bg-slate-50 dark:bg-[#0a0a0c] font-sans transition-colors duration-300">
@@ -66,20 +63,14 @@ function LayoutContent({ children }: { children: ReactNode }) {
     </div>
   );
 
-  // First load: session not yet fetched — show spinner so no layout flashes.
-  // Keep the !session guard so a profile update() call (which briefly re-enters loading
-  // with the old session still cached) doesn't replace the page with a spinner.
   if (status === "loading" && !session) {
     return <Spinner />;
   }
 
-  // Unauthenticated on a protected page: redirect is queued in the effect below but
-  // hasn't navigated yet. Return the spinner so no protected content ever paints.
   if (status === "unauthenticated" && !isAuthPage) {
     return <Spinner />;
   }
 
-  // Show sidebar for authenticated users on non-auth pages.
   const showSidebar = status === "authenticated" && !isAuthPage;
 
   return (
@@ -87,7 +78,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
       {showSidebar && (
         <aside className="w-72 bg-white dark:bg-[#0d0d0f] border-r border-slate-100 dark:border-slate-800 flex flex-col sticky top-0 h-screen z-50 shrink-0 transition-all duration-300">
 
-          {/* Logo Alanı - Yeni Tasarım */}
+          {/* Logo Alanı */}
           <div className="p-8 mb-4">
             <Link href="/dashboard" className="flex items-center gap-3 group">
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:rotate-12 transition-all duration-300">
@@ -163,6 +154,9 @@ function LayoutContent({ children }: { children: ReactNode }) {
         {children}
       </main>
 
+      {/* AI Assistant Panel - Yalnızca giriş yapılmışsa ve korumalı sayfalardaysak render edilir */}
+      {showSidebar && <AssistantPanel />}
+
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
@@ -197,7 +191,6 @@ function LayoutContent({ children }: { children: ReactNode }) {
   );
 }
 
-// Sidebar Linkleri için geliştirilmiş bileşen
 function SidebarLink({ href, icon, label, active }: { href: string, icon: any, label: string, active: boolean }) {
   return (
     <Link href={href} className="block group">
