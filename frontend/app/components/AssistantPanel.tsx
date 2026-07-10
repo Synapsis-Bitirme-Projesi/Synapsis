@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-<<<<<<< HEAD
 import {
     ArrowRight,
     BookOpen,
@@ -42,11 +41,6 @@ interface NotebookNote {
 
 type AssistantMode = "chat" | "summary" | "questions" | "cards" | "compare" | "explain";
 
-=======
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
->>>>>>> main
 interface Message {
     id: string;
     sender: "user" | "ai";
