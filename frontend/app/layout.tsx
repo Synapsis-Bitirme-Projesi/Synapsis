@@ -3,8 +3,11 @@ import { useSession, signOut } from "next-auth/react";
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+<<<<<<< HEAD
+=======
 import AssistantPanel from "app/components/AssistantPanel";
 import "katex/dist/katex.min.css"; // KaTeX formül stilleri için
+>>>>>>> main
 import {
   LayoutDashboard,
   CheckSquare,
@@ -12,7 +15,8 @@ import {
   BookOpen,
   Calendar as CalendarIcon,
   FileText,
-  GraduationCap
+  GraduationCap,
+  Sparkles
 } from "lucide-react";
 import AuthProvider from "./components/SessionProvider";
 import "./globals.css";
@@ -123,6 +127,12 @@ function LayoutContent({ children }: { children: ReactNode }) {
               label="Notes"
               active={pathname === "/notes"}
             />
+            <SidebarLink
+              href="/assistant"
+              icon={<Sparkles size={20} />}
+              label="Study Buddy"
+              active={pathname === "/assistant"}
+            />
           </nav>
 
           {/* Alt Bölüm: Profil ve Çıkış */}
@@ -154,9 +164,6 @@ function LayoutContent({ children }: { children: ReactNode }) {
       <main className="flex-1 h-screen overflow-y-auto bg-slate-50 dark:bg-[#0a0a0c] relative transition-colors duration-300">
         {children}
       </main>
-
-      {/* AI Assistant Panel - Yalnızca giriş yapılmışsa ve korumalı sayfalardaysak render edilir */}
-      {showSidebar && <AssistantPanel />}
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
