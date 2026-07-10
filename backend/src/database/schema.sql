@@ -44,3 +44,25 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Notebook AI sources
+CREATE TABLE IF NOT EXISTS ai_sources (
+  id             SERIAL PRIMARY KEY,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title          VARCHAR(255) NOT NULL,
+  source_type    VARCHAR(50) NOT NULL DEFAULT 'upload',
+  mime_type      VARCHAR(100),
+  raw_text       TEXT NOT NULL,
+  origin_note_id INTEGER REFERENCES notes(id) ON DELETE SET NULL,
+  created_at     TIMESTAMP DEFAULT NOW(),
+  updated_at     TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_source_chunks (
+  id           SERIAL PRIMARY KEY,
+  source_id    INTEGER NOT NULL REFERENCES ai_sources(id) ON DELETE CASCADE,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chunk_index  INTEGER NOT NULL,
+  chunk_text   TEXT NOT NULL,
+  created_at   TIMESTAMP DEFAULT NOW()
+);
