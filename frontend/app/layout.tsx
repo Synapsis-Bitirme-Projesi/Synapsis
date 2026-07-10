@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import AssistantPanel from "app/components/AssistantPanel";
+import "katex/dist/katex.min.css"; // KaTeX formül stilleri için
 import {
   LayoutDashboard,
   CheckSquare,
