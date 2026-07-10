@@ -3,11 +3,6 @@ import { useSession, signOut } from "next-auth/react";
 import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-<<<<<<< HEAD
-=======
-import AssistantPanel from "app/components/AssistantPanel";
-import "katex/dist/katex.min.css"; // KaTeX formül stilleri için
->>>>>>> main
 import {
   LayoutDashboard,
   CheckSquare,
