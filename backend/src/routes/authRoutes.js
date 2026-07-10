@@ -13,7 +13,11 @@ const {
     addTask,
     getTasks,
     deleteTask,
-    updateTask
+    updateTask,
+    addNote,
+    getNotes,
+    updateNote,
+    deleteNote
 } = require('../controllers/authController');
 
 // 2. AI Controller Fonksiyonları
@@ -49,5 +53,16 @@ router.patch('/tasks/:id', protect, updateTask);
 router.post('/ai/chat', protect, streamAIResponse);           // Chat Akışı (Streaming)
 router.post('/ai/artifacts', protect, saveArtifact);     // Çıktı Kaydetme
 router.get('/ai/artifacts', protect, getArtifacts);       // Kayıtlı Çıktıları Listeleme
+// Eğer notes kelimesi ana rota prefix'indeyse (örneğin app.use('/api/notes', notesRoutes)) sadece /:id olur:
+router.put('/:id', protect, updateNote);
 
+// Eğer ana rota /api ise şu şekilde olmalıdır:
+router.put('/notes/:id', protect, updateNote);
+router.post('/notes', protect, addNote);
+
+router.get('/notes', protect, getNotes);
+
+router.put('/notes/:id', protect, updateNote);
+
+router.delete('/notes/:id', protect, deleteNote);
 module.exports = router;

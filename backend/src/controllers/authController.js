@@ -310,6 +310,105 @@ const updateTask = async (req, res) => {
     res.status(500).json({ error: "Failed to update task." });
   }
 };
+const addNote = async (req, res) => {
+  try {
+    const { title, content, course, tags } = req.body;
+    const userId = req.user.userId;
+
+    if (!title) {
+      return res.status(400).json({ error: "Not başlığı zorunludur." });
+    }
+
+    const newNote = await pool.query(
+      "INSERT INTO notes (user_id, title, content, course, tags) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [userId, title, content || "", course || null, tags || []]
+    );
+
+    res.status(201).json(newNote.rows[0]);
+  } catch (err) {
+    console.error("DB Not Ekleme Hatası:", err.message);
+    res.status(500).json({ error: "Not kaydedilemedi." });
+  }
+};
+
+// 2. Kullanıcının Tüm Notlarını Listeleme
+// 2. Kullanıcının Tüm Notlarını Listeleme (Ders bilgisiyle beraber)
+const getNotes = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?.userId;
+
+    const notes = await pool.query(
+      "SELECT id, title, content, course, course_name, created_at, updated_at, tags FROM notes WHERE user_id = $1 ORDER BY created_at DESC",
+      [userId]
+    );
+
+    // Front-end'in kafası karışmasın diye her satıra hem course hem course_name basıyoruz
+    const formattedNotes = notes.rows.map(note => ({
+      ...note,
+      course: note.course || note.course_name || null
+    }));
+
+    res.json(formattedNotes);
+  } catch (err) {
+    console.error("DB Not Listeleme Hatası:", err.message);
+    res.status(500).json({ error: "Notlar getirilemedi." });
+  }
+};
+
+// 3. Not Güncelleme (Ders bağlama/çözme burayı kullanacak)
+const updateNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Olası tüm isim kombinasyonlarını body'den süzüyoruz
+    const { title, content, course, courseName, course_name } = req.body;
+    const userId = req.user?.id || req.user?.userId;
+
+    // Gelen değerlerden hangisi doluysa onu 'finalCourse' olarak seçiyoruz
+    const finalCourse = course || courseName || course_name || null;
+
+    console.log(`--- VERİTABANI YAZMA İŞLEMİ ---`);
+    console.log(`Gelen Değerler -> course: ${course}, courseName: ${courseName}`);
+    console.log(`Kaydedilecek Net Ders: ${finalCourse}`);
+
+    // Veritabanındaki iki kolona da bu nihai değeri yazıyoruz
+    const result = await pool.query(
+      "UPDATE notes SET title = $1, content = $2, course = $3, course_name = $4 WHERE id = $5 AND user_id = $6 RETURNING *",
+      [title, content, finalCourse, finalCourse, id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Not bulunamadı veya yetkiniz yok." });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("DB Not Güncelleme Hatası:", err.message);
+    res.status(500).json({ error: "Not güncellenemedi." });
+  }
+};
+
+// 4. Not Silme
+const deleteNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const result = await pool.query(
+      "DELETE FROM notes WHERE id = $1 AND user_id = $2 RETURNING *",
+      [id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Not bulunamadı veya yetkiniz yok." });
+    }
+
+    res.json({ message: "Not başarıyla silindi." });
+  } catch (err) {
+    console.error("DB Not Silme Hatası:", err.message);
+    res.status(500).json({ error: "Not silinirken hata oluştu." });
+  }
+};
 
 module.exports = {
   register,
@@ -322,5 +421,9 @@ module.exports = {
   addTask,
   getTasks,
   deleteTask,
-  updateTask
+  updateTask,
+  addNote,
+  getNotes,
+  updateNote,
+  deleteNote
 };

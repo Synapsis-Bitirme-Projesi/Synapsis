@@ -1,5 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
-const pool = require('../config/db'); // Veritabanı bağlantın
+const pool = require('../config/db'); // Veritabanı bağlantısı
 
 // SDK'yı API anahtarı ile başlatıyoruz
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -12,11 +12,19 @@ const streamAIResponse = async (req, res) => {
 
     try {
         const { prompt, courseName } = req.body;
-        const userId = req.user.id; // protect middleware'inden gelen kullanıcı id'si
+
+        // KRİTİK GÜVENCE: protect middleware'inden id veya userId olarak gelse de doğru eşleşsin
+        const userId = req.user?.id || req.user?.userId;
+
+        if (!userId) {
+            res.write(`data: ${JSON.stringify({ error: "Kullanıcı oturumu doğrulanamadı." })}\n\n`);
+            res.end();
+            return;
+        }
 
         let contextText = "";
 
-        // Bağlam (Context) Hazırlığı: Eğer ders seçildiyse veritabanından kullanıcının o derse ait notlarını çekiyoruz
+        // Bağlam (Context) Hazırlığı: Eğer ders seçildiyse kullanıcının o derse ait notlarını çekiyoruz
         if (courseName && courseName !== "Select Course") {
             const notesQuery = await pool.query(
                 'SELECT title, content FROM notes WHERE user_id = $1 AND (course = $2 OR tags @> ARRAY[$2]::varchar[])',
@@ -24,19 +32,21 @@ const streamAIResponse = async (req, res) => {
             );
 
             if (notesQuery.rows.length > 0) {
-                contextText = `Kullanıcının ${courseName} dersi için aldığı notlar aşağıdadır:\n`;
+                contextText = `Kullanıcının ${courseName} dersi için aldığı gerçek ders notları aşağıdadır. Üreteceğin yanıtlarda ve sorulan sorularda öncelikle BU NOTLARI referans almalısın:\n`;
                 notesQuery.rows.forEach(note => {
+                    // HTML tag'lerini temizlemek istersen regex kullanabilirsin ancak Gemini HTML içeriği de başarıyla okur
                     contextText += `--- Not Başlığı: ${note.title} ---\nİçerik: ${note.content}\n\n`;
                 });
             }
         }
 
         // Sistem Promptu şablonu
-        const systemInstruction = ` Sen Synapsis adında, üniversite öğrencilerine yardımcı olan akıllı bir akademik asistansın.
-        Kullanıcının adı Tolga. Yanıtlarını markdown formatında, anlaşılır ve akademik başarıyı odaklayan bir dilde ver.
-        Sana sağlanan ders notları bağlamına (Context) sadık kalmaya çalış. Eğer bağlam yetersizse genel akademik bilgilerle destekle.
-        
-        ${contextText}`;
+        const systemInstruction = `Sen Synapsis adında, üniversite öğrencilerine yardımcı olan akıllı bir akademik asistansın.
+Kullanıcının adı Tolga. Yanıtlarını markdown formatında, anlaşılır ve akademik başarıyı odaklayan bir dilde ver.
+Matematiksel ve fiziksel formülleri satır içinde veya blok halinde gösterirken kesinlikle standart LaTeX formatında (örneğin \\frac{a}{b} veya \\vec{v} gibi) yazmalısın.
+Sana sağlanan ders notları bağlamına (Context) sıkı sıkıya sadık kalmaya çalış. Eğer bağlam yetersizse genel akademik bilgilerle destekle.
+
+${contextText}`;
 
         // Gemini 2.5 Flash modelini streaming moduyla çağırıyoruz
         const responseStream = await ai.models.generateContentStream({
@@ -52,7 +62,6 @@ const streamAIResponse = async (req, res) => {
         for await (const chunk of responseStream) {
             const text = chunk.text;
             if (text) {
-                // Doğrudan metni gönderiyoruz, karmaşık JSON paketlemesinden kaçınıyoruz
                 res.write(`data: ${text}\n\n`);
             }
         }
@@ -66,11 +75,12 @@ const streamAIResponse = async (req, res) => {
         res.end();
     }
 };
+
 // Yeni bir yapay zeka çıktısını kaydetme
 const saveArtifact = async (req, res) => {
     try {
         const { courseName, artifactType, title, content } = req.body;
-        const userId = req.user.id;
+        const userId = req.user?.id || req.user?.userId;
 
         if (!courseName || !artifactType || !title || !content) {
             return res.status(400).json({ error: "Eksik parametre gönderildi." });
@@ -91,7 +101,7 @@ const saveArtifact = async (req, res) => {
 // Kullanıcının kayıtlı tüm çıktılarını getirme
 const getArtifacts = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user?.id || req.user?.userId;
         const artifacts = await pool.query(
             'SELECT * FROM ai_artifacts WHERE user_id = $1 ORDER BY created_at DESC',
             [userId]
