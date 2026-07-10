@@ -18,6 +18,12 @@ const {
 
 // 2. AI Controller Fonksiyonları
 const {
+    upload,
+    createTextSource,
+    uploadSources,
+    importNotesAsSources,
+    listSources,
+    deleteSource,
     streamAIResponse,
     saveArtifact,
     getArtifacts
@@ -46,6 +52,11 @@ router.delete('/tasks/:id', protect, deleteTask);
 router.patch('/tasks/:id', protect, updateTask);
 
 // --- AI Asistan & Artefakt Rotaları ---
+router.get('/ai/sources', protect, listSources);
+router.post('/ai/sources', protect, createTextSource);
+router.post('/ai/sources/upload', protect, upload.array('files', 10), uploadSources);
+router.post('/ai/sources/import-notes', protect, importNotesAsSources);
+router.delete('/ai/sources/:id', protect, deleteSource);
 router.post('/ai/chat', protect, streamAIResponse);           // Chat Akışı (Streaming)
 router.post('/ai/artifacts', protect, saveArtifact);     // Çıktı Kaydetme
 router.get('/ai/artifacts', protect, getArtifacts);       // Kayıtlı Çıktıları Listeleme
