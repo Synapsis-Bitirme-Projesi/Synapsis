@@ -70,3 +70,45 @@ CREATE TABLE IF NOT EXISTS ai_source_chunks (
   chunk_text   TEXT NOT NULL,
   created_at   TIMESTAMP DEFAULT NOW()
 );
+
+-- Saved AI study outputs
+CREATE TABLE IF NOT EXISTS ai_artifacts (
+  id             SERIAL PRIMARY KEY,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_name    VARCHAR(255),
+  artifact_type  VARCHAR(50) NOT NULL DEFAULT 'summary',
+  title          VARCHAR(255) NOT NULL,
+  content        TEXT NOT NULL,
+  output_format  VARCHAR(50) DEFAULT 'markdown',
+  output_depth   VARCHAR(50) DEFAULT 'standard',
+  output_tone    VARCHAR(50) DEFAULT 'neutral',
+  citations      JSONB DEFAULT '[]'::jsonb,
+  cache_key      VARCHAR(64),
+  created_at     TIMESTAMP DEFAULT NOW()
+);
+
+-- Cache for study-set generations (summary / questions / cards / etc.)
+CREATE TABLE IF NOT EXISTS ai_study_cache (
+  id                 SERIAL PRIMARY KEY,
+  user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  cache_key          VARCHAR(64) NOT NULL,
+  course_name        VARCHAR(255),
+  mode               VARCHAR(50) NOT NULL,
+  output_format      VARCHAR(50) NOT NULL DEFAULT 'markdown',
+  output_depth       VARCHAR(50) NOT NULL DEFAULT 'standard',
+  output_tone        VARCHAR(50) NOT NULL DEFAULT 'neutral',
+  prompt             TEXT NOT NULL,
+  content            TEXT NOT NULL,
+  citations          JSONB DEFAULT '[]'::jsonb,
+  source_fingerprint TEXT,
+  hit_count          INTEGER NOT NULL DEFAULT 0,
+  created_at         TIMESTAMP DEFAULT NOW(),
+  updated_at         TIMESTAMP DEFAULT NOW(),
+  UNIQUE (user_id, cache_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_sources_user_id ON ai_sources(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_source_chunks_source_id ON ai_source_chunks(source_id);
+CREATE INDEX IF NOT EXISTS idx_ai_artifacts_user_id ON ai_artifacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_study_cache_user_id ON ai_study_cache(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_study_cache_key ON ai_study_cache(cache_key);

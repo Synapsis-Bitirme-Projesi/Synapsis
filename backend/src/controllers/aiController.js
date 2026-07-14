@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
+const crypto = require('crypto');
 const multer = require('multer');
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
@@ -11,6 +12,11 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
 });
+
+const STUDY_CACHE_MODES = new Set(['summary', 'questions', 'cards', 'compare', 'explain']);
+const OUTPUT_FORMATS = new Set(['markdown', 'bullets', 'outline', 'qa']);
+const OUTPUT_DEPTHS = new Set(['brief', 'standard', 'detailed']);
+const OUTPUT_TONES = new Set(['neutral', 'exam', 'friendly', 'academic']);
 
 let notebookTablesReady = false;
 
@@ -57,6 +63,36 @@ async function ensureNotebookTables() {
         );
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_artifacts_user_id ON ai_artifacts(user_id);`);
+
+    // Optional metadata columns for saved study outputs
+    await pool.query(`ALTER TABLE ai_artifacts ADD COLUMN IF NOT EXISTS output_format VARCHAR(50) DEFAULT 'markdown';`);
+    await pool.query(`ALTER TABLE ai_artifacts ADD COLUMN IF NOT EXISTS output_depth VARCHAR(50) DEFAULT 'standard';`);
+    await pool.query(`ALTER TABLE ai_artifacts ADD COLUMN IF NOT EXISTS output_tone VARCHAR(50) DEFAULT 'neutral';`);
+    await pool.query(`ALTER TABLE ai_artifacts ADD COLUMN IF NOT EXISTS citations JSONB DEFAULT '[]'::jsonb`);
+    await pool.query(`ALTER TABLE ai_artifacts ADD COLUMN IF NOT EXISTS cache_key VARCHAR(64);`);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_study_cache (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            cache_key VARCHAR(64) NOT NULL,
+            course_name VARCHAR(255),
+            mode VARCHAR(50) NOT NULL,
+            output_format VARCHAR(50) NOT NULL DEFAULT 'markdown',
+            output_depth VARCHAR(50) NOT NULL DEFAULT 'standard',
+            output_tone VARCHAR(50) NOT NULL DEFAULT 'neutral',
+            prompt TEXT NOT NULL,
+            content TEXT NOT NULL,
+            citations JSONB DEFAULT '[]'::jsonb,
+            source_fingerprint TEXT,
+            hit_count INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE (user_id, cache_key)
+        );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_study_cache_user_id ON ai_study_cache(user_id);`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_study_cache_key ON ai_study_cache(cache_key);`);
 
     notebookTablesReady = true;
 }
@@ -134,23 +170,176 @@ function buildModeInstruction(mode) {
     }
 }
 
-function buildSystemInstruction(mode) {
+function normalizePreferences({ format, depth, tone, outputFormat, outputDepth, outputTone } = {}) {
+    const resolvedFormat = String(format || outputFormat || 'markdown').toLowerCase();
+    const resolvedDepth = String(depth || outputDepth || 'standard').toLowerCase();
+    const resolvedTone = String(tone || outputTone || 'neutral').toLowerCase();
+
+    return {
+        format: OUTPUT_FORMATS.has(resolvedFormat) ? resolvedFormat : 'markdown',
+        depth: OUTPUT_DEPTHS.has(resolvedDepth) ? resolvedDepth : 'standard',
+        tone: OUTPUT_TONES.has(resolvedTone) ? resolvedTone : 'neutral',
+    };
+}
+
+function buildPreferenceInstruction(prefs) {
+    const formatLine = {
+        markdown: 'Format the answer as clean markdown with short headings.',
+        bullets: 'Format the answer mostly as bullet points; keep prose minimal.',
+        outline: 'Format the answer as a hierarchical outline (I / A / 1 style or nested bullets).',
+        qa: 'Format the answer as Q&A pairs (Question then Answer).',
+    }[prefs.format];
+
+    const depthLine = {
+        brief: 'Keep it brief: only the essentials (roughly 5-8 short bullets or equivalent).',
+        standard: 'Use a balanced depth suitable for a study session.',
+        detailed: 'Go deeper: include nuance, edge cases, and extra examples when sources support them.',
+    }[prefs.depth];
+
+    const toneLine = {
+        neutral: 'Use a clear, neutral study tone.',
+        exam: 'Use an exam-prep tone: precise, test-oriented, and action-focused.',
+        friendly: 'Use a friendly tutor tone that stays encouraging and simple.',
+        academic: 'Use a formal academic tone appropriate for university coursework.',
+    }[prefs.tone];
+
+    return `${formatLine}\n${depthLine}\n${toneLine}`;
+}
+
+function buildSystemInstruction(mode, prefs = normalizePreferences()) {
     return `You are Synapsis Notebook, a NotebookLM-style academic assistant for university students.
 Use only the provided source excerpts as evidence.
 If the sources do not cover the question, say what is missing instead of inventing facts.
-Always respond in markdown.
-Use citations like [Source: Title] whenever you rely on an excerpt.
+${buildPreferenceInstruction(prefs)}
+When you rely on an excerpt, cite it inline using the exact citation tags provided in the source block, e.g. [S1] or [S2].
+At the end of the response, add a short "Sources used" section listing the citation tags you referenced with their titles.
+Do not invent source tags that were not provided.
 ${buildModeInstruction(mode)}`;
 }
 
-function buildContextBlock(chunks) {
+function buildCitationRecords(chunks) {
+    return chunks.map((item, index) => {
+        const tag = `S${index + 1}`;
+        const sourceId = item.source_id;
+        const noteMatch = String(sourceId || '').match(/^note-(\d+)$/i);
+        const excerpt = normalizeText(item.chunk_text).slice(0, 220);
+
+        return {
+            tag,
+            sourceId,
+            noteId: noteMatch ? Number(noteMatch[1]) : (item.origin_note_id || null),
+            title: item.source_title,
+            sourceType: item.source_type,
+            chunkIndex: Number(item.chunk_index) || 0,
+            excerpt: excerpt + (String(item.chunk_text || '').length > 220 ? '…' : ''),
+        };
+    });
+}
+
+function buildContextBlock(chunks, citations = []) {
     if (!chunks.length) return 'No source excerpts were found.';
 
     return chunks
         .map((item, index) => {
-            return `Source ${index + 1}: ${item.source_title} (${item.source_type})\n${item.chunk_text}`;
+            const citation = citations[index] || { tag: `S${index + 1}`, title: item.source_title, chunkIndex: item.chunk_index };
+            const noteHint = citation.noteId ? ` | note#${citation.noteId}` : '';
+            return `[${citation.tag}] ${citation.title} (${item.source_type}${noteHint} | block ${citation.chunkIndex})\n${item.chunk_text}`;
         })
         .join('\n\n---\n\n');
+}
+
+function buildCacheKey({ userId, mode, prefs, prompt, courseName, sourceFingerprint }) {
+    const payload = JSON.stringify({
+        userId: Number(userId),
+        mode: String(mode || 'chat'),
+        format: prefs.format,
+        depth: prefs.depth,
+        tone: prefs.tone,
+        prompt: normalizeText(prompt).toLowerCase(),
+        courseName: normalizeText(courseName || '').toLowerCase(),
+        sourceFingerprint: String(sourceFingerprint || ''),
+    });
+
+    return crypto.createHash('sha256').update(payload).digest('hex');
+}
+
+function buildSourceFingerprint(chunks, sourceIds = []) {
+    const fromChunks = chunks
+        .map((item) => `${item.source_id}:${item.chunk_index}:${normalizeText(item.chunk_text).slice(0, 40)}`)
+        .sort()
+        .join('|');
+    const fromIds = (Array.isArray(sourceIds) ? sourceIds : [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id))
+        .sort((a, b) => a - b)
+        .join(',');
+    return crypto.createHash('sha256').update(`${fromIds}::${fromChunks}`).digest('hex');
+}
+
+async function getCachedStudySet(userId, cacheKey) {
+    const result = await pool.query(
+        `SELECT id, content, citations, mode, output_format, output_depth, output_tone, course_name, hit_count
+         FROM ai_study_cache
+         WHERE user_id = $1 AND cache_key = $2
+         LIMIT 1`,
+        [userId, cacheKey]
+    );
+
+    if (result.rows.length === 0) return null;
+
+    await pool.query(
+        `UPDATE ai_study_cache
+         SET hit_count = hit_count + 1, updated_at = NOW()
+         WHERE id = $1`,
+        [result.rows[0].id]
+    );
+
+    return result.rows[0];
+}
+
+async function saveStudyCache({
+    userId,
+    cacheKey,
+    courseName,
+    mode,
+    prefs,
+    prompt,
+    content,
+    citations,
+    sourceFingerprint,
+}) {
+    if (!content || !String(content).trim()) return null;
+
+    const result = await pool.query(
+        `INSERT INTO ai_study_cache (
+            user_id, cache_key, course_name, mode,
+            output_format, output_depth, output_tone,
+            prompt, content, citations, source_fingerprint, hit_count
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,0)
+         ON CONFLICT (user_id, cache_key)
+         DO UPDATE SET
+            content = EXCLUDED.content,
+            citations = EXCLUDED.citations,
+            source_fingerprint = EXCLUDED.source_fingerprint,
+            course_name = EXCLUDED.course_name,
+            updated_at = NOW()
+         RETURNING id`,
+        [
+            userId,
+            cacheKey,
+            courseName || null,
+            mode,
+            prefs.format,
+            prefs.depth,
+            prefs.tone,
+            normalizeText(prompt),
+            String(content),
+            JSON.stringify(citations || []),
+            sourceFingerprint || null,
+        ]
+    );
+
+    return result.rows[0] || null;
 }
 
 async function extractTextFromUpload(file) {
@@ -244,7 +433,8 @@ async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
 
     if (normalizedSourceIds.length > 0) {
         const filtered = await pool.query(
-            `SELECT s.id AS source_id, s.title AS source_title, s.source_type, c.chunk_index, c.chunk_text
+            `SELECT s.id AS source_id, s.title AS source_title, s.source_type, s.origin_note_id,
+                    c.chunk_index, c.chunk_text
              FROM ai_sources s
              INNER JOIN ai_source_chunks c ON c.source_id = s.id
              WHERE s.user_id = $1 AND s.id = ANY($2::int[])
@@ -281,6 +471,7 @@ async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
                     source_id: `note-${note.id}`,
                     source_title: `${note.title} (${selectedCourse})`,
                     source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'course-note',
+                    origin_note_id: note.id,
                     chunk_index: index,
                     chunk_text: chunk,
                 });
@@ -293,7 +484,8 @@ async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
     }
 
     const notebookSources = await pool.query(
-        `SELECT s.id AS source_id, s.title AS source_title, s.source_type, c.chunk_index, c.chunk_text
+        `SELECT s.id AS source_id, s.title AS source_title, s.source_type, s.origin_note_id,
+                c.chunk_index, c.chunk_text
          FROM ai_sources s
          INNER JOIN ai_source_chunks c ON c.source_id = s.id
          WHERE s.user_id = $1
@@ -324,6 +516,7 @@ async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
                 source_id: `note-${note.id}`,
                 source_title: note.title,
                 source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'note',
+                origin_note_id: note.id,
                 chunk_index: index,
                 chunk_text: chunk,
             });
@@ -349,17 +542,23 @@ function selectRelevantChunks(prompt, chunks, maxChunks = 7) {
         .slice(0, maxChunks);
 }
 
-function buildOfflineResponse(mode, prompt, chunks) {
-    const sourceList = chunks.slice(0, 5).map((item) => `- [Source: ${item.source_title}] ${item.chunk_text.slice(0, 250)}${item.chunk_text.length > 250 ? '…' : ''}`);
+function buildOfflineResponse(mode, prompt, chunks, citations = []) {
+    const sourceList = (citations.length ? citations : chunks.slice(0, 5).map((item, index) => ({
+        tag: `S${index + 1}`,
+        title: item.source_title,
+        excerpt: item.chunk_text.slice(0, 250) + (item.chunk_text.length > 250 ? '…' : ''),
+    }))).slice(0, 5).map((item) => `- [${item.tag || 'S?'}] ${item.title || item.source_title}: ${item.excerpt || item.chunk_text?.slice(0, 250) || ''}`);
+
     const intro = mode === 'summary'
         ? 'I could not reach a local LLM, but here is a source-grounded summary from your notebook.'
         : 'I could not reach a local LLM, but here are the most relevant excerpts from your notebook.';
 
-    return `${intro}\n\n${sourceList.join('\n\n')}\n\nQuestion: ${prompt}`;
+    return `${intro}\n\n${sourceList.join('\n\n')}\n\nQuestion: ${prompt}\n\n### Sources used\n${sourceList.map((line) => line.replace(/^-\s*/, '')).join('\n')}`;
 }
 
 async function streamTextToResponse(res, text) {
-    const parts = String(text || '')
+    const full = String(text || '');
+    const parts = full
         .split(/\n{2,}/)
         .map((part) => part.trim())
         .filter(Boolean);
@@ -367,6 +566,8 @@ async function streamTextToResponse(res, text) {
     for (const part of parts) {
         res.write(`data: ${JSON.stringify({ delta: `${part}\n\n` })}\n\n`);
     }
+
+    return full;
 }
 
 async function streamLocalOllamaResponse(res, systemInstruction, userPrompt) {
@@ -393,6 +594,7 @@ async function streamLocalOllamaResponse(res, systemInstruction, userPrompt) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let fullText = '';
 
     while (true) {
         const { value, done } = await reader.read();
@@ -409,17 +611,17 @@ async function streamLocalOllamaResponse(res, systemInstruction, userPrompt) {
             const payload = JSON.parse(trimmed);
             const delta = payload.message?.content || payload.response || '';
             if (delta) {
+                fullText += delta;
                 res.write(`data: ${JSON.stringify({ delta })}\n\n`);
             }
 
             if (payload.done) {
-                res.write('data: [DONE]\n\n');
-                return;
+                return fullText;
             }
         }
     }
 
-    res.write('data: [DONE]\n\n');
+    return fullText;
 }
 
 async function streamGeminiResponse(res, systemInstruction, userPrompt) {
@@ -436,14 +638,16 @@ async function streamGeminiResponse(res, systemInstruction, userPrompt) {
         },
     });
 
+    let fullText = '';
     for await (const chunk of responseStream) {
         const text = chunk.text;
         if (text) {
+            fullText += text;
             res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
         }
     }
 
-    res.write('data: [DONE]\n\n');
+    return fullText;
 }
 
 async function createTextSource(req, res) {
@@ -610,7 +814,19 @@ async function streamAIResponse(req, res) {
         await ensureNotebookTables();
 
         const userId = getUserId(req);
-        const { prompt, sourceIds = [], mode = 'chat', courseName = null } = req.body;
+        const {
+            prompt,
+            sourceIds = [],
+            mode = 'chat',
+            courseName = null,
+            format,
+            depth,
+            tone,
+            outputFormat,
+            outputDepth,
+            outputTone,
+            bypassCache = false,
+        } = req.body;
 
         if (!userId) {
             res.write(`data: ${JSON.stringify({ error: 'Yetki bilgisi eksik.' })}\n\n`);
@@ -624,38 +840,115 @@ async function streamAIResponse(req, res) {
             return;
         }
 
+        const prefs = normalizePreferences({ format, depth, tone, outputFormat, outputDepth, outputTone });
         const corpus = await loadNotebookChunks(userId, sourceIds, courseName);
         const relevantChunks = selectRelevantChunks(prompt, corpus);
-        const contextBlock = buildContextBlock(relevantChunks);
-        const systemInstruction = buildSystemInstruction(mode);
+        const citations = buildCitationRecords(relevantChunks);
+        const contextBlock = buildContextBlock(relevantChunks, citations);
+        const systemInstruction = buildSystemInstruction(mode, prefs);
         const courseHint = courseName ? `\nFocus on the course: ${courseName}.` : '';
-        const userPrompt = `User question:\n${prompt}${courseHint}\n\nSource excerpts:\n${contextBlock}`;
+        const preferenceHint = `\nOutput preferences → format: ${prefs.format}, depth: ${prefs.depth}, tone: ${prefs.tone}.`;
+        const userPrompt = `User question:\n${prompt}${courseHint}${preferenceHint}\n\nSource excerpts (cite with the [S#] tags):\n${contextBlock}`;
+
+        const sourceFingerprint = buildSourceFingerprint(relevantChunks, sourceIds);
+        const cacheKey = buildCacheKey({
+            userId,
+            mode,
+            prefs,
+            prompt,
+            courseName,
+            sourceFingerprint,
+        });
+        const canUseCache = STUDY_CACHE_MODES.has(String(mode || '')) && !bypassCache;
+
+        // Emit citation metadata first so the UI can show source references
+        res.write(`data: ${JSON.stringify({
+            meta: {
+                citations,
+                preferences: prefs,
+                cacheKey,
+                cached: false,
+            },
+        })}\n\n`);
+
+        if (canUseCache) {
+            const cached = await getCachedStudySet(userId, cacheKey);
+            if (cached?.content) {
+                res.write(`data: ${JSON.stringify({
+                    meta: {
+                        citations: cached.citations || citations,
+                        preferences: {
+                            format: cached.output_format || prefs.format,
+                            depth: cached.output_depth || prefs.depth,
+                            tone: cached.output_tone || prefs.tone,
+                        },
+                        cacheKey,
+                        cached: true,
+                        cacheHits: Number(cached.hit_count || 0) + 1,
+                    },
+                })}\n\n`);
+                await streamTextToResponse(res, cached.content);
+                res.write('data: [DONE]\n\n');
+                res.end();
+                return;
+            }
+        }
+
+        let fullText = '';
 
         try {
             if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
-                await streamLocalOllamaResponse(res, systemInstruction, userPrompt);
+                fullText = await streamLocalOllamaResponse(res, systemInstruction, userPrompt);
             } else if (ai) {
-                await streamGeminiResponse(res, systemInstruction, userPrompt);
+                fullText = await streamGeminiResponse(res, systemInstruction, userPrompt);
             } else {
-                await streamTextToResponse(res, buildOfflineResponse(mode, prompt, relevantChunks));
-                res.write('data: [DONE]\n\n');
+                fullText = await streamTextToResponse(
+                    res,
+                    buildOfflineResponse(mode, prompt, relevantChunks, citations)
+                );
             }
         } catch (localError) {
             console.error('Primary AI stream failed, falling back:', localError.message);
 
             if (ai) {
-                await streamGeminiResponse(res, systemInstruction, userPrompt);
+                fullText = await streamGeminiResponse(res, systemInstruction, userPrompt);
             } else {
-                await streamTextToResponse(res, buildOfflineResponse(mode, prompt, relevantChunks));
-                res.write('data: [DONE]\n\n');
+                fullText = await streamTextToResponse(
+                    res,
+                    buildOfflineResponse(mode, prompt, relevantChunks, citations)
+                );
             }
         }
 
+        if (canUseCache && fullText) {
+            try {
+                await saveStudyCache({
+                    userId,
+                    cacheKey,
+                    courseName,
+                    mode,
+                    prefs,
+                    prompt,
+                    content: fullText,
+                    citations,
+                    sourceFingerprint,
+                });
+            } catch (cacheError) {
+                console.error('Study cache save failed:', cacheError.message);
+            }
+        }
+
+        res.write('data: [DONE]\n\n');
         res.end();
     } catch (error) {
         console.error('AI Streaming Hatası:', error.message);
-        res.write(`data: ${JSON.stringify({ error: 'Yapay zeka yanıtı üretilirken bir hata oluştu.' })}\n\n`);
-        res.end();
+        try {
+            res.write(`data: ${JSON.stringify({ error: 'Yapay zeka yanıtı üretilirken bir hata oluştu.' })}\n\n`);
+            res.write('data: [DONE]\n\n');
+            res.end();
+        } catch {
+            // response may already be closed
+        }
     }
 }
 
@@ -663,8 +956,22 @@ const saveArtifact = async (req, res) => {
     try {
         await ensureNotebookTables();
 
-        const { courseName, artifactType, title, content } = req.body;
+        const {
+            courseName,
+            artifactType,
+            title,
+            content,
+            citations = [],
+            format,
+            depth,
+            tone,
+            outputFormat,
+            outputDepth,
+            outputTone,
+            cacheKey = null,
+        } = req.body;
         const userId = getUserId(req);
+        const prefs = normalizePreferences({ format, depth, tone, outputFormat, outputDepth, outputTone });
 
         if (!userId) {
             return res.status(401).json({ error: 'Yetki bilgisi eksik.' });
@@ -675,8 +982,23 @@ const saveArtifact = async (req, res) => {
         }
 
         const newArtifact = await pool.query(
-            'INSERT INTO ai_artifacts (user_id, course_name, artifact_type, title, content) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-            [userId, courseName, artifactType, title, content]
+            `INSERT INTO ai_artifacts (
+                user_id, course_name, artifact_type, title, content,
+                output_format, output_depth, output_tone, citations, cache_key
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+             RETURNING *`,
+            [
+                userId,
+                courseName,
+                artifactType,
+                title,
+                content,
+                prefs.format,
+                prefs.depth,
+                prefs.tone,
+                JSON.stringify(Array.isArray(citations) ? citations : []),
+                cacheKey || null,
+            ]
         );
 
         res.status(201).json(newArtifact.rows[0]);

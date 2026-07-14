@@ -7,12 +7,15 @@ import {
     BookOpen,
     Bookmark,
     Bot,
+    Check,
+    ChevronDown,
     FileText,
     HelpCircle,
     Layers,
     Loader2,
     Paperclip,
     Plus,
+    RefreshCw,
     Search,
     Send,
     Sparkles,
@@ -47,6 +50,19 @@ interface CourseOption {
 }
 
 type AssistantMode = "chat" | "summary" | "questions" | "cards" | "compare" | "explain";
+type OutputFormat = "markdown" | "bullets" | "outline" | "qa";
+type OutputDepth = "brief" | "standard" | "detailed";
+type OutputTone = "neutral" | "exam" | "friendly" | "academic";
+
+interface CitationRef {
+    tag: string;
+    sourceId?: string | number | null;
+    noteId?: number | null;
+    title: string;
+    sourceType?: string;
+    chunkIndex?: number;
+    excerpt?: string;
+}
 
 interface Message {
     id: string;
@@ -54,7 +70,178 @@ interface Message {
     text: string;
     timestamp: Date;
     mode?: AssistantMode;
+    citations?: CitationRef[];
+    cached?: boolean;
+    preferences?: {
+        format: OutputFormat;
+        depth: OutputDepth;
+        tone: OutputTone;
+    };
+    cacheKey?: string | null;
 }
+
+type SelectOption = {
+    value: string;
+    label: string;
+    description?: string;
+};
+
+function AestheticSelect({
+    label,
+    value,
+    options,
+    onChange,
+    icon,
+    className = "",
+    buttonClassName = "",
+    menuAlign = "left",
+}: {
+    label?: string;
+    value: string;
+    options: SelectOption[];
+    onChange: (value: string) => void;
+    icon?: React.ReactNode;
+    className?: string;
+    buttonClassName?: string;
+    menuAlign?: "left" | "right";
+}) {
+    const [open, setOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const selected = options.find((option) => option.value === value) || options[0];
+
+    useEffect(() => {
+        if (!open) return;
+
+        const onPointerDown = (event: MouseEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        };
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") setOpen(false);
+        };
+
+        document.addEventListener("mousedown", onPointerDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onPointerDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [open]);
+
+    return (
+        <div ref={rootRef} className={`relative ${className}`}>
+            {label && (
+                <span className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    {label}
+                </span>
+            )}
+            <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                onClick={() => setOpen((current) => !current)}
+                className={`group flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 text-left shadow-sm outline-none transition-all hover:border-blue-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-slate-700/80 dark:bg-slate-900/90 dark:hover:border-blue-500/40 ${
+                    open ? "border-blue-400 ring-2 ring-blue-500/25 dark:border-blue-500/50" : ""
+                } ${buttonClassName}`}
+            >
+                <span className="flex min-w-0 items-center gap-2">
+                    {icon && (
+                        <span className="shrink-0 text-blue-600 dark:text-blue-400">{icon}</span>
+                    )}
+                    <span className="truncate text-xs font-bold text-slate-700 dark:text-slate-100">
+                        {selected?.label || "Select"}
+                    </span>
+                </span>
+                <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-blue-500 ${
+                        open ? "rotate-180 text-blue-500" : ""
+                    }`}
+                />
+            </button>
+
+            {open && (
+                <div
+                    role="listbox"
+                    className={`absolute z-50 mt-2 min-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-700/80 dark:bg-[#121216]/95 dark:shadow-black/40 ${
+                        menuAlign === "right" ? "right-0" : "left-0"
+                    }`}
+                >
+                    <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                        {options.map((option) => {
+                            const isActive = option.value === value;
+                            return (
+                                <button
+                                    key={option.value || "__empty"}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isActive}
+                                    onClick={() => {
+                                        onChange(option.value);
+                                        setOpen(false);
+                                    }}
+                                    className={`flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                                        isActive
+                                            ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                                    }`}
+                                >
+                                    <span
+                                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                                            isActive
+                                                ? "border-white/40 bg-white/15 text-white"
+                                                : "border-slate-300 text-transparent dark:border-slate-600"
+                                        }`}
+                                    >
+                                        <Check size={10} strokeWidth={3} />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-xs font-bold leading-tight">
+                                            {option.label}
+                                        </span>
+                                        {option.description && (
+                                            <span
+                                                className={`mt-0.5 block text-[10px] leading-snug ${
+                                                    isActive
+                                                        ? "text-blue-100"
+                                                        : "text-slate-400 dark:text-slate-500"
+                                                }`}
+                                            >
+                                                {option.description}
+                                            </span>
+                                        )}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const FORMAT_OPTIONS: SelectOption[] = [
+    { value: "markdown", label: "Markdown", description: "Headings and clean prose" },
+    { value: "bullets", label: "Bullets", description: "Quick scannable points" },
+    { value: "outline", label: "Outline", description: "Hierarchical study map" },
+    { value: "qa", label: "Q&A", description: "Question and answer pairs" },
+];
+
+const DEPTH_OPTIONS: SelectOption[] = [
+    { value: "brief", label: "Brief", description: "Only the essentials" },
+    { value: "standard", label: "Standard", description: "Balanced study depth" },
+    { value: "detailed", label: "Detailed", description: "Deeper nuance and examples" },
+];
+
+const TONE_OPTIONS: SelectOption[] = [
+    { value: "neutral", label: "Neutral", description: "Clear and direct" },
+    { value: "exam", label: "Exam prep", description: "Test-focused and precise" },
+    { value: "friendly", label: "Friendly tutor", description: "Warm and simple" },
+    { value: "academic", label: "Academic", description: "Formal university tone" },
+];
 
 const modeTemplates: Array<{
     mode: AssistantMode;
@@ -122,14 +309,65 @@ export default function AssistantPanel() {
     const [activePanel, setActivePanel] = useState<"sources" | "notes">("sources");
     const [courses, setCourses] = useState<CourseOption[]>([]);
     const [selectedCourse, setSelectedCourse] = useState("");
+    const [outputFormat, setOutputFormat] = useState<OutputFormat>("markdown");
+    const [outputDepth, setOutputDepth] = useState<OutputDepth>("standard");
+    const [outputTone, setOutputTone] = useState<OutputTone>("neutral");
+    const [bypassCache, setBypassCache] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const prefsHydratedRef = useRef(false);
 
     const getToken = () => {
         if (typeof window === "undefined") return null;
         return localStorage.getItem("token");
     };
+
+    const prefsStorageKey = (courseName: string) =>
+        `synapsis-ai-prefs:${courseName || "all"}`;
+
+    // Load format/depth/tone preferences per selected course
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        prefsHydratedRef.current = false;
+        try {
+            const raw = localStorage.getItem(prefsStorageKey(selectedCourse));
+            if (raw) {
+                const parsed = JSON.parse(raw) as {
+                    format?: OutputFormat;
+                    depth?: OutputDepth;
+                    tone?: OutputTone;
+                };
+                if (parsed.format) setOutputFormat(parsed.format);
+                if (parsed.depth) setOutputDepth(parsed.depth);
+                if (parsed.tone) setOutputTone(parsed.tone);
+            } else {
+                setOutputFormat("markdown");
+                setOutputDepth("standard");
+                setOutputTone("neutral");
+            }
+        } catch {
+            // ignore corrupt prefs
+        }
+        prefsHydratedRef.current = true;
+    }, [selectedCourse]);
+
+    // Persist preferences whenever they change for the active course
+    useEffect(() => {
+        if (typeof window === "undefined" || !prefsHydratedRef.current) return;
+        try {
+            localStorage.setItem(
+                prefsStorageKey(selectedCourse),
+                JSON.stringify({
+                    format: outputFormat,
+                    depth: outputDepth,
+                    tone: outputTone,
+                })
+            );
+        } catch {
+            // ignore quota / private mode
+        }
+    }, [selectedCourse, outputFormat, outputDepth, outputTone]);
 
     const filteredSources = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -310,24 +548,34 @@ export default function AssistantPanel() {
         }
     };
 
-    const handleSaveArtifact = async (msgId: string, text: string, mode?: AssistantMode) => {
+    const handleSaveArtifact = async (msg: Message) => {
         const token = getToken();
-        if (!token) return;
+        if (!token || !msg.text) return;
 
-        setSavingId(msgId);
+        setSavingId(msg.id);
         try {
             const courseName =
                 selectedCourse ||
                 (selectedSourceIds.length > 0 ? `Notebook ${selectedSourceIds.length}` : "General Notebook");
-            const title = text.split("\n")[0].replace(/[#*]/g, "").trim() || "Notebook Output";
+            const title = msg.text.split("\n")[0].replace(/[#*]/g, "").trim() || "Notebook Output";
+            const prefs = msg.preferences || {
+                format: outputFormat,
+                depth: outputDepth,
+                tone: outputTone,
+            };
 
             await axios.post(
                 "http://localhost:5000/api/auth/ai/artifacts",
                 {
                     courseName,
-                    artifactType: mode || "summary",
+                    artifactType: msg.mode || "summary",
                     title: title.length > 50 ? `${title.substring(0, 50)}...` : title,
-                    content: text,
+                    content: msg.text,
+                    citations: msg.citations || [],
+                    format: prefs.format,
+                    depth: prefs.depth,
+                    tone: prefs.tone,
+                    cacheKey: msg.cacheKey || null,
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -345,12 +593,19 @@ export default function AssistantPanel() {
         const token = getToken();
         if (!promptText.trim() || isLoading || !token) return;
 
+        const prefs = {
+            format: outputFormat,
+            depth: outputDepth,
+            tone: outputTone,
+        };
+
         const userMessage: Message = {
             id: Math.random().toString(),
             sender: "user",
             text: displayText || promptText.trim(),
             timestamp: new Date(),
             mode,
+            preferences: prefs,
         };
 
         setMessages((prev) => [...prev, userMessage]);
@@ -366,6 +621,8 @@ export default function AssistantPanel() {
                 text: "",
                 timestamp: new Date(),
                 mode,
+                preferences: prefs,
+                citations: [],
             },
         ]);
 
@@ -381,6 +638,10 @@ export default function AssistantPanel() {
                     mode,
                     sourceIds: selectedSourceIds,
                     courseName: selectedCourse || null,
+                    format: prefs.format,
+                    depth: prefs.depth,
+                    tone: prefs.tone,
+                    bypassCache,
                 }),
             });
 
@@ -416,14 +677,54 @@ export default function AssistantPanel() {
                                 break;
                             }
 
-                            let delta = rawContent;
                             try {
                                 const parsed = JSON.parse(rawContent);
-                                delta = parsed.delta || parsed.text || rawContent;
-                            } catch {
-                                // raw text fallback
-                            }
 
+                                if (parsed.error) {
+                                    accumulatedText = String(parsed.error);
+                                    setMessages((prev) =>
+                                        prev.map((msg) =>
+                                            msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                                        )
+                                    );
+                                    continue;
+                                }
+
+                                if (parsed.meta) {
+                                    setMessages((prev) =>
+                                        prev.map((msg) =>
+                                            msg.id === aiMessageId
+                                                ? {
+                                                      ...msg,
+                                                      citations: Array.isArray(parsed.meta.citations)
+                                                          ? parsed.meta.citations
+                                                          : msg.citations,
+                                                      cached: Boolean(parsed.meta.cached),
+                                                      cacheKey: parsed.meta.cacheKey || msg.cacheKey || null,
+                                                      preferences: parsed.meta.preferences || msg.preferences,
+                                                  }
+                                                : msg
+                                        )
+                                    );
+                                }
+
+                                const delta = parsed.delta || parsed.text || "";
+                                if (!delta) continue;
+
+                                accumulatedText += delta;
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                                    )
+                                );
+                            } catch {
+                                accumulatedText += rawContent;
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                                    )
+                                );
+                            }
                             accumulatedText += delta;
                             setMessages((prev) =>
                                 prev.map((msg) => (msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg))
@@ -721,21 +1022,71 @@ export default function AssistantPanel() {
                             <div className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
                                 Local-first with Ollama fallback
                             </div>
-                            <label className="inline-flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
-                                <BookOpen size={14} className="text-blue-600" />
-                                <select
-                                    value={selectedCourse}
-                                    onChange={(e) => setSelectedCourse(e.target.value)}
-                                    className="bg-transparent outline-none text-xs font-bold text-slate-700 dark:text-slate-200"
+                            <AestheticSelect
+                                value={selectedCourse}
+                                onChange={setSelectedCourse}
+                                icon={<BookOpen size={14} />}
+                                className="min-w-[11rem]"
+                                buttonClassName="rounded-full px-3 py-1.5"
+                                options={[
+                                    { value: "", label: "All courses", description: "Use every linked course" },
+                                    ...courses.map((course) => ({
+                                        value: course.course_name,
+                                        label: course.course_name,
+                                    })),
+                                ]}
+                            />
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <AestheticSelect
+                                label="Format"
+                                value={outputFormat}
+                                onChange={(value) => setOutputFormat(value as OutputFormat)}
+                                options={FORMAT_OPTIONS}
+                            />
+                            <AestheticSelect
+                                label="Depth"
+                                value={outputDepth}
+                                onChange={(value) => setOutputDepth(value as OutputDepth)}
+                                options={DEPTH_OPTIONS}
+                            />
+                            <AestheticSelect
+                                label="Tone"
+                                value={outputTone}
+                                onChange={(value) => setOutputTone(value as OutputTone)}
+                                options={TONE_OPTIONS}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setBypassCache((current) => !current)}
+                                className={`flex h-full min-h-[4.25rem] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left shadow-sm transition-all ${
+                                    bypassCache
+                                        ? "border-amber-400/60 bg-amber-50 text-amber-900 shadow-amber-500/10 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
+                                        : "border-slate-200/80 bg-white/90 text-slate-700 hover:border-blue-300 dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-blue-500/40"
+                                }`}
+                            >
+                                <span
+                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                                        bypassCache
+                                            ? "bg-amber-500 text-white"
+                                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                                    }`}
                                 >
-                                    <option value="">All courses</option>
-                                    {courses.map((course) => (
-                                        <option key={course.id} value={course.course_name}>
-                                            {course.course_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
+                                    <RefreshCw size={15} className={bypassCache ? "animate-[spin_2.5s_linear_infinite]" : ""} />
+                                </span>
+                                <span className="min-w-0">
+                                    <span className="block text-[10px] font-black uppercase tracking-[0.2em] opacity-70">
+                                        Cache
+                                    </span>
+                                    <span className="block text-xs font-bold leading-tight">
+                                        {bypassCache ? "Regenerate fresh" : "Use cached sets"}
+                                    </span>
+                                    <span className="mt-0.5 block text-[10px] leading-snug opacity-70">
+                                        {bypassCache ? "Skip saved study sets" : "Faster repeat answers"}
+                                    </span>
+                                </span>
+                            </button>
                         </div>
                     </div>
 
@@ -760,7 +1111,54 @@ export default function AssistantPanel() {
                                             : 'bg-white dark:bg-[#111113] text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 rounded-tl-none shadow-sm'
                                             }`}
                                     >
+                                        {(msg.cached || msg.preferences) && msg.sender === 'ai' && msg.id !== 'welcome' && (
+                                            <div className="mb-2 flex flex-wrap gap-1.5">
+                                                {msg.cached && (
+                                                    <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                                        Cached study set
+                                                    </span>
+                                                )}
+                                                {msg.preferences && (
+                                                    <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-300">
+                                                        {msg.preferences.format} · {msg.preferences.depth} · {msg.preferences.tone}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                         <p>{msg.text || '...'}</p>
+                                        {msg.sender === 'ai' && msg.citations && msg.citations.length > 0 && (
+                                            <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                                    Source references
+                                                </p>
+                                                {msg.citations.map((citation) => (
+                                                    <div
+                                                        key={`${citation.tag}-${citation.sourceId}-${citation.chunkIndex}`}
+                                                        className="rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 px-3 py-2"
+                                                    >
+                                                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                                            <span className="rounded-md bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 text-blue-700 dark:text-blue-300">
+                                                                [{citation.tag}]
+                                                            </span>
+                                                            <span className="truncate">{citation.title}</span>
+                                                            {typeof citation.noteId === 'number' && (
+                                                                <span className="rounded-full bg-violet-50 dark:bg-violet-900/30 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">
+                                                                    note #{citation.noteId}
+                                                                </span>
+                                                            )}
+                                                            {typeof citation.chunkIndex === 'number' && (
+                                                                <span className="text-slate-400">block {citation.chunkIndex}</span>
+                                                            )}
+                                                        </div>
+                                                        {citation.excerpt && (
+                                                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-3">
+                                                                {citation.excerpt}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                         <span className={`text-[10px] block mt-1 text-right ${msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400'}`}>
                                             {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
@@ -768,7 +1166,7 @@ export default function AssistantPanel() {
 
                                     {msg.sender === 'ai' && msg.text && msg.id !== 'welcome' && (
                                         <button
-                                            onClick={() => handleSaveArtifact(msg.id, msg.text, msg.mode)}
+                                            onClick={() => handleSaveArtifact(msg)}
                                             disabled={savingId === msg.id}
                                             className="self-start flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800/60 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200/50 dark:border-slate-700/50 transition-all active:scale-95 disabled:opacity-50 ml-1"
                                         >

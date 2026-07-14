@@ -56,9 +56,9 @@ Goal: turn notes into course-specific learning assets.
 - [x] Generate example questions from a selected course’s notes.
 - [x] Generate short summaries optimized for rapid review.
 - [x] Generate flashcards or quick-read cards from the same content source.
-- [ ] Let users choose output format, depth, and tone per course.
-- [ ] Add citations or source references back to the original note blocks when possible.
-- [ ] Cache generated study sets to avoid rerunning the same prompt unnecessarily.
+- [x] Let users choose output format, depth, and tone per course.
+- [x] Add citations or source references back to the original note blocks when possible.
+- [x] Cache generated study sets to avoid rerunning the same prompt unnecessarily.
 
 ### Phase 6 — Polish and Validation
 Goal: make the new features reliable before release.
@@ -76,9 +76,9 @@ Goal: make the new features reliable before release.
 - AI layer: integrated NotebookLM-style assistant (sources, course-aware context, Ollama/Gemini streaming, artifact storage)
 
 ## Near-Term Risks
-- AI features still need stronger citation/caching behavior for production reliability.
 - Responsive polish and broader automated API coverage remain open.
 - Whiteboard sketch strokes are stored as point paths; richer drawing tools can be layered later.
+- Study-set cache keys depend on selected sources + preferences; force-regenerate is available when notes change outside fingerprint coverage.
 
 ## Branch
 main
