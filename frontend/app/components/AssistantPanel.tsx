@@ -35,8 +35,15 @@ interface NotebookNote {
     id: number;
     title: string;
     content?: string | null;
+    course?: string | null;
+    course_name?: string | null;
     created_at?: string;
     updated_at?: string;
+}
+
+interface CourseOption {
+    id: number;
+    course_name: string;
 }
 
 type AssistantMode = "chat" | "summary" | "questions" | "cards" | "compare" | "explain";
@@ -113,6 +120,8 @@ export default function AssistantPanel() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedMode, setSelectedMode] = useState<AssistantMode>("chat");
     const [activePanel, setActivePanel] = useState<"sources" | "notes">("sources");
+    const [courses, setCourses] = useState<CourseOption[]>([]);
+    const [selectedCourse, setSelectedCourse] = useState("");
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,17 +156,29 @@ export default function AssistantPanel() {
             }
 
             try {
-                const [sourcesResponse, notesResponse] = await Promise.all([
+                const [sourcesResponse, notesResponse, coursesResponse] = await Promise.all([
                     axios.get("http://localhost:5000/api/auth/ai/sources", {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
                     axios.get("http://localhost:5000/api/notes", {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
+                    axios.get("http://localhost:5000/api/courses", {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
                 ]);
 
                 setSources(sourcesResponse.data || []);
                 setNotes(notesResponse.data || []);
+
+                const uniqueCourses = Array.from(
+                    new Map(
+                        (coursesResponse.data || [])
+                            .filter((course: CourseOption) => course?.course_name)
+                            .map((course: CourseOption) => [course.course_name, course])
+                    ).values()
+                ) as CourseOption[];
+                setCourses(uniqueCourses);
             } catch (error) {
                 console.error("Notebook workspace load failed:", error);
                 setWorkspaceError("Sources could not be loaded.");
@@ -295,7 +316,9 @@ export default function AssistantPanel() {
 
         setSavingId(msgId);
         try {
-            const courseName = selectedSourceIds.length > 0 ? `Notebook ${selectedSourceIds.length}` : "General Notebook";
+            const courseName =
+                selectedCourse ||
+                (selectedSourceIds.length > 0 ? `Notebook ${selectedSourceIds.length}` : "General Notebook");
             const title = text.split("\n")[0].replace(/[#*]/g, "").trim() || "Notebook Output";
 
             await axios.post(
@@ -357,6 +380,7 @@ export default function AssistantPanel() {
                     prompt: promptText,
                     mode,
                     sourceIds: selectedSourceIds,
+                    courseName: selectedCourse || null,
                 }),
             });
 
@@ -697,6 +721,21 @@ export default function AssistantPanel() {
                             <div className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
                                 Local-first with Ollama fallback
                             </div>
+                            <label className="inline-flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <BookOpen size={14} className="text-blue-600" />
+                                <select
+                                    value={selectedCourse}
+                                    onChange={(e) => setSelectedCourse(e.target.value)}
+                                    className="bg-transparent outline-none text-xs font-bold text-slate-700 dark:text-slate-200"
+                                >
+                                    <option value="">All courses</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.course_name}>
+                                            {course.course_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
                         </div>
                     </div>
 

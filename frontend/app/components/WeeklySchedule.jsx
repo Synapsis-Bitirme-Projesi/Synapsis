@@ -181,97 +181,91 @@ const WeeklySchedule = ({ isDarkMode }) => {
                                     {/* Gün Hücreleri */}
                                     {days.map((_, dayIdx) => {
                                         const startingCourses = scheduleGrid[dayIdx + 1]?.[time] || [];
-
-                                        let blockHeight = null;
-                                            if (startingCourses.length > 0) {
-                                                blockHeight = getCourseSpanHeight(time, startingCourses);
-                                        }
+                                        const blockHeight = startingCourses.length > 0
+                                            ? getCourseSpanHeight(time, startingCourses, timeSlots)
+                                            : null;
+                                        const isOverlap = startingCourses.length > 1;
 
                                         return (
-                                            <div key={dayIdx} className={`border-l transition-colors ${isDarkMode ? 'border-slate-800' : 'border-slate-100'
-                                                    } p-1 relative hover:bg-blue-500/5 transition-colors`} style={{ overflow: startingCourses.length > 0 ? 'visible' : undefined }}>
-                                                    {startingCourses.length > 0 && (
+                                            <div
+                                                key={dayIdx}
+                                                className={`border-l transition-colors ${isDarkMode ? 'border-slate-800' : 'border-slate-100'} p-1 relative hover:bg-blue-500/5`}
+                                                style={{ overflow: startingCourses.length > 0 ? 'visible' : undefined }}
+                                            >
+                                                {startingCourses.length > 0 && (
                                                     <div
-                                                            className="absolute inset-x-1 top-1 rounded-lg p-2 shadow-md border-l-4 transition-all hover:scale-[1.02] cursor-pointer flex flex-col gap-2"
-                                                        style={{
-                                                                backgroundColor: isDarkMode ? `${startingCourses[0].color_code}35` : `${startingCourses[0].color_code}15`,
-                                                                borderColor: startingCourses[0].color_code,
-                                                                color: isDarkMode ? '#f1f5f9' : startingCourses[0].color_code,
-                                                            height: `${blockHeight}px`,
-                                                            zIndex: 10
-                                                        }}
+                                                        className="absolute inset-x-1 top-1 bottom-auto z-10 flex flex-col gap-1"
+                                                        style={{ height: `${blockHeight}px` }}
                                                     >
-                                                            {startingCourses.length > 1 && (
-                                                              <div className="self-start rounded-full bg-slate-950/70 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                                                        {isOverlap && (
+                                                            <div className="self-start rounded-full bg-slate-950/80 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-white shrink-0">
                                                                 {startingCourses.length} overlapping
-                                                              </div>
-                                                            )}
+                                                            </div>
+                                                        )}
 
-                                                            <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
-                                                              {startingCourses.map((course, courseIdx) => (
+                                                        <div className={`min-h-0 flex-1 flex ${isOverlap ? 'flex-row gap-1' : 'flex-col'}`}>
+                                                            {startingCourses.map((course, courseIdx) => (
                                                                 <div
-                                                                  key={`${course.id || course.course_code}-${course.start_time}-${courseIdx}`}
-                                                                  role="button"
-                                                                  tabIndex={0}
-                                                                  onClick={() => openEditModal(course)}
-                                                                  onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                                      e.preventDefault();
-                                                                      openEditModal(course);
-                                                                    }
-                                                                  }}
-                                                                  className="group flex-1 min-h-0 rounded-md px-2 py-1.5 border overflow-hidden cursor-pointer transition-all hover:brightness-[1.03] focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                                                                  style={{
-                                                                    backgroundColor: isDarkMode ? `${course.color_code}1f` : `${course.color_code}12`,
-                                                                    borderColor: `${course.color_code}55`,
-                                                                    color: isDarkMode ? '#f8fafc' : course.color_code,
-                                                                  }}
+                                                                    key={`${course.id || course.course_code}-${course.start_time}-${courseIdx}`}
+                                                                    role="button"
+                                                                    tabIndex={0}
+                                                                    onClick={() => openEditModal(course)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                                            e.preventDefault();
+                                                                            openEditModal(course);
+                                                                        }
+                                                                    }}
+                                                                    className={`group min-w-0 min-h-0 h-full rounded-lg px-1.5 py-1 border-l-4 border shadow-md overflow-hidden cursor-pointer transition-all hover:brightness-[1.05] hover:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${isOverlap ? 'flex-1' : 'w-full'}`}
+                                                                    style={{
+                                                                        backgroundColor: isDarkMode ? `${course.color_code}40` : `${course.color_code}18`,
+                                                                        borderColor: course.color_code,
+                                                                        color: isDarkMode ? '#f8fafc' : course.color_code,
+                                                                    }}
                                                                 >
-                                                                  <div className="flex items-start justify-between gap-2">
-                                                                    <div className="min-w-0">
-                                                                      <div className="font-bold text-[11px] leading-tight mb-1 truncate uppercase">
-                                                                        {course.course_name}
-                                                                      </div>
-                                                                      <div className="flex items-center gap-1 opacity-90 text-[9px] font-semibold flex-wrap">
-                                                                        <span>{course.course_code}</span>
-                                                                        <span className="opacity-50">•</span>
-                                                                        <span>{formatTime(course.start_time)}-{formatTime(course.end_time)}</span>
-                                                                        {course.location && (
-                                                                          <>
-                                                                            <span className="opacity-50">•</span>
-                                                                            <span>{course.location}</span>
-                                                                          </>
-                                                                        )}
-                                                                      </div>
-                                                                    </div>
+                                                                    <div className="flex h-full flex-col justify-between gap-0.5">
+                                                                        <div className="min-w-0">
+                                                                            <div className={`font-bold leading-tight truncate uppercase ${isOverlap ? 'text-[10px]' : 'text-[11px]'}`}>
+                                                                                {course.course_name}
+                                                                            </div>
+                                                                            <div className={`mt-0.5 opacity-90 font-semibold leading-tight ${isOverlap ? 'text-[8px]' : 'text-[9px]'}`}>
+                                                                                <div className="truncate">{course.course_code}</div>
+                                                                                <div className="truncate">
+                                                                                    {formatTime(course.start_time)}-{formatTime(course.end_time)}
+                                                                                </div>
+                                                                                {course.location && !isOverlap && (
+                                                                                    <div className="truncate">{course.location}</div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
 
-                                                                    <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                                                                      <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                          e.stopPropagation();
-                                                                          openEditModal(course);
-                                                                        }}
-                                                                        className="rounded-full bg-white/70 p-1 text-slate-700 shadow-sm hover:bg-white"
-                                                                        aria-label={`Edit ${course.course_name}`}
-                                                                      >
-                                                                        <Pencil size={10} />
-                                                                      </button>
-                                                                      <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                          e.stopPropagation();
-                                                                          handleDelete(course);
-                                                                        }}
-                                                                        className="rounded-full bg-white/70 p-1 text-rose-600 shadow-sm hover:bg-rose-50"
-                                                                        aria-label={`Delete ${course.course_name}`}
-                                                                      >
-                                                                        <Trash2 size={10} />
-                                                                      </button>
+                                                                        <div className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 shrink-0">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    openEditModal(course);
+                                                                                }}
+                                                                                className="rounded-full bg-white/80 p-0.5 text-slate-700 shadow-sm hover:bg-white"
+                                                                                aria-label={`Edit ${course.course_name}`}
+                                                                            >
+                                                                                <Pencil size={9} />
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDelete(course);
+                                                                                }}
+                                                                                className="rounded-full bg-white/80 p-0.5 text-rose-600 shadow-sm hover:bg-rose-50"
+                                                                                aria-label={`Delete ${course.course_name}`}
+                                                                            >
+                                                                                <Trash2 size={9} />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
-                                                                  </div>
                                                                 </div>
-                                                              ))}
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}

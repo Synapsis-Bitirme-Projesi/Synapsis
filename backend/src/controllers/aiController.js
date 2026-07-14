@@ -4,6 +4,7 @@ const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const path = require('path');
 const pool = require('../config/db');
+const { noteToAiText } = require('../utils/whiteboard');
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 const upload = multer({
@@ -43,6 +44,20 @@ async function ensureNotebookTables() {
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_sources_user_id ON ai_sources(user_id);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_source_chunks_source_id ON ai_source_chunks(source_id);`);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_artifacts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            course_name VARCHAR(255),
+            artifact_type VARCHAR(50) NOT NULL DEFAULT 'summary',
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_artifacts_user_id ON ai_artifacts(user_id);`);
+
     notebookTablesReady = true;
 }
 
@@ -221,10 +236,11 @@ async function storeSourceContent({ userId, title, content, sourceType, mimeType
     }
 }
 
-async function loadNotebookChunks(userId, sourceIds = []) {
+async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
     const normalizedSourceIds = Array.isArray(sourceIds)
         ? sourceIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
         : [];
+    const selectedCourse = normalizeText(courseName);
 
     if (normalizedSourceIds.length > 0) {
         const filtered = await pool.query(
@@ -238,6 +254,41 @@ async function loadNotebookChunks(userId, sourceIds = []) {
 
         if (filtered.rows.length > 0) {
             return filtered.rows;
+        }
+    }
+
+    if (selectedCourse) {
+        const courseNotes = await pool.query(
+            `SELECT id, title, content, course, course_name, note_type, whiteboard_data
+             FROM notes
+             WHERE user_id = $1
+               AND (
+                 course ILIKE $2
+                 OR course_name ILIKE $2
+               )
+             ORDER BY updated_at DESC`,
+            [userId, selectedCourse]
+        );
+
+        const courseRows = [];
+        for (const note of courseNotes.rows) {
+            const plain = noteToAiText(note);
+            const noteChunks = chunkText(plain || note.title || '');
+            if (noteChunks.length === 0) continue;
+
+            noteChunks.forEach((chunk, index) => {
+                courseRows.push({
+                    source_id: `note-${note.id}`,
+                    source_title: `${note.title} (${selectedCourse})`,
+                    source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'course-note',
+                    chunk_index: index,
+                    chunk_text: chunk,
+                });
+            });
+        }
+
+        if (courseRows.length > 0) {
+            return courseRows;
         }
     }
 
@@ -255,7 +306,7 @@ async function loadNotebookChunks(userId, sourceIds = []) {
     }
 
     const notes = await pool.query(
-        `SELECT id, title, content
+        `SELECT id, title, content, note_type, whiteboard_data
          FROM notes
          WHERE user_id = $1
          ORDER BY updated_at DESC`,
@@ -264,14 +315,15 @@ async function loadNotebookChunks(userId, sourceIds = []) {
 
     const fallbackRows = [];
     for (const note of notes.rows) {
-        const noteChunks = chunkText(note.content || note.title || '');
+        const plain = noteToAiText(note);
+        const noteChunks = chunkText(plain || note.title || '');
         if (noteChunks.length === 0) continue;
 
         noteChunks.forEach((chunk, index) => {
             fallbackRows.push({
                 source_id: `note-${note.id}`,
                 source_title: note.title,
-                source_type: 'note',
+                source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'note',
                 chunk_index: index,
                 chunk_text: chunk,
             });
@@ -465,10 +517,13 @@ async function importNotesAsSources(req, res) {
 
         const notesQuery = noteIds.length > 0
             ? await pool.query(
-                'SELECT id, title, content FROM notes WHERE user_id = $1 AND id = ANY($2::int[])',
+                'SELECT id, title, content, note_type, whiteboard_data FROM notes WHERE user_id = $1 AND id = ANY($2::int[])',
                 [userId, noteIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))]
             )
-            : await pool.query('SELECT id, title, content FROM notes WHERE user_id = $1 ORDER BY updated_at DESC', [userId]);
+            : await pool.query(
+                'SELECT id, title, content, note_type, whiteboard_data FROM notes WHERE user_id = $1 ORDER BY updated_at DESC',
+                [userId]
+            );
 
         const imported = [];
 
@@ -476,8 +531,8 @@ async function importNotesAsSources(req, res) {
             const result = await storeSourceContent({
                 userId,
                 title: note.title,
-                content: note.content || '',
-                sourceType: 'note',
+                content: noteToAiText(note) || note.content || '',
+                sourceType: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'note',
                 mimeType: 'text/plain',
                 originNoteId: note.id,
             });
@@ -555,7 +610,7 @@ async function streamAIResponse(req, res) {
         await ensureNotebookTables();
 
         const userId = getUserId(req);
-        const { prompt, sourceIds = [], mode = 'chat' } = req.body;
+        const { prompt, sourceIds = [], mode = 'chat', courseName = null } = req.body;
 
         if (!userId) {
             res.write(`data: ${JSON.stringify({ error: 'Yetki bilgisi eksik.' })}\n\n`);
@@ -569,11 +624,12 @@ async function streamAIResponse(req, res) {
             return;
         }
 
-        const corpus = await loadNotebookChunks(userId, sourceIds);
+        const corpus = await loadNotebookChunks(userId, sourceIds, courseName);
         const relevantChunks = selectRelevantChunks(prompt, corpus);
         const contextBlock = buildContextBlock(relevantChunks);
         const systemInstruction = buildSystemInstruction(mode);
-        const userPrompt = `User question:\n${prompt}\n\nSource excerpts:\n${contextBlock}`;
+        const courseHint = courseName ? `\nFocus on the course: ${courseName}.` : '';
+        const userPrompt = `User question:\n${prompt}${courseHint}\n\nSource excerpts:\n${contextBlock}`;
 
         try {
             if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
@@ -605,6 +661,8 @@ async function streamAIResponse(req, res) {
 
 const saveArtifact = async (req, res) => {
     try {
+        await ensureNotebookTables();
+
         const { courseName, artifactType, title, content } = req.body;
         const userId = getUserId(req);
 
@@ -630,6 +688,8 @@ const saveArtifact = async (req, res) => {
 
 const getArtifacts = async (req, res) => {
     try {
+        await ensureNotebookTables();
+
         const userId = getUserId(req);
         if (!userId) {
             return res.status(401).json({ error: 'Yetki bilgisi eksik.' });
