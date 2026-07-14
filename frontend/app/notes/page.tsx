@@ -28,6 +28,11 @@ import {
   parseWhiteboardData,
   whiteboardToPlainText,
 } from '../lib/whiteboard';
+import {
+  ActiveLecture,
+  ScheduleCourse,
+  findActiveLecture,
+} from '../lib/activeLecture';
 
 // Custom slash commands
 const slashCommands = [
@@ -155,11 +160,17 @@ export default function NotesPage() {
   const [activeNoteId, setActiveNoteId] = useState<number | null>(null);
   const [currentTitle, setCurrentTitle] = useState('');
   const [availableCourses, setAvailableCourses] = useState<string[]>([]);
+  const [scheduleCourses, setScheduleCourses] = useState<ScheduleCourse[]>([]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [pendingCourse, setPendingCourse] = useState<string | null>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+
+  // Live-lecture suggestion after first successful save during class time
+  const [showLiveLinkModal, setShowLiveLinkModal] = useState(false);
+  const [liveLectureSuggestion, setLiveLectureSuggestion] = useState<ActiveLecture | null>(null);
+  const [liveLinkNoteId, setLiveLinkNoteId] = useState<number | null>(null);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeNoteIdRef = useRef<number | null>(null);
@@ -168,12 +179,34 @@ export default function NotesPage() {
   const currentNoteTypeRef = useRef<NoteType>('text');
   const currentWhiteboardRef = useRef<WhiteboardData>(createEmptyWhiteboard());
   const notesRef = useRef<Note[]>([]);
+  const scheduleCoursesRef = useRef<ScheduleCourse[]>([]);
+  // noteIds already prompted (or dismissed) this session — avoid spam on every autosave
+  const livePromptedNoteIdsRef = useRef<Set<number>>(new Set());
 
   const getToken = () => localStorage.getItem('token');
 
   useEffect(() => {
     notesRef.current = notes;
   }, [notes]);
+
+  useEffect(() => {
+    scheduleCoursesRef.current = scheduleCourses;
+  }, [scheduleCourses]);
+
+  const maybeOfferLiveLectureLink = useCallback((noteId: number, linkedCourse: string | null | undefined) => {
+    // Only for unlinked notes, once per note per session
+    if (linkedCourse) return;
+    if (livePromptedNoteIdsRef.current.has(noteId)) return;
+    if (showLiveLinkModal || showLinkModal) return;
+
+    const lecture = findActiveLecture(scheduleCoursesRef.current, new Date());
+    if (!lecture) return;
+
+    livePromptedNoteIdsRef.current.add(noteId);
+    setLiveLectureSuggestion(lecture);
+    setLiveLinkNoteId(noteId);
+    setShowLiveLinkModal(true);
+  }, [showLiveLinkModal, showLinkModal]);
 
   const autoSave = useCallback(async (payload: {
     noteId: number;
@@ -182,6 +215,7 @@ export default function NotesPage() {
     course?: string | null;
     noteType?: NoteType;
     whiteboardData?: WhiteboardData;
+    skipLivePrompt?: boolean;
   }) => {
     try {
       const token = getToken();
@@ -215,11 +249,15 @@ export default function NotesPage() {
       } : n));
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 1200);
+
+      if (!payload.skipLivePrompt) {
+        maybeOfferLiveLectureLink(payload.noteId, finalCourse);
+      }
     } catch (err) {
       console.error('Auto-save failed:', err);
       setSaveState('error');
     }
-  }, []);
+  }, [maybeOfferLiveLectureLink]);
 
   const scheduleSave = useCallback((overrides?: {
     content?: string;
@@ -293,11 +331,15 @@ export default function NotesPage() {
         const fetched: Note[] = (notesRes.data as any[]).map(normalizeNote);
         setNotes(fetched);
 
+        const schedule = (coursesRes.data as ScheduleCourse[]) || [];
+        setScheduleCourses(schedule);
+        scheduleCoursesRef.current = schedule;
+
         const courseNames = Array.from(
           new Set(
-            (coursesRes.data as any[])
-              .map((c: any) => c.course_name || c.name || c.title)
-              .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+            schedule
+              .map((c) => c.course_name || c.name || '')
+              .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
           )
         ).sort((a, b) => a.localeCompare(b));
         setAvailableCourses(courseNames);
@@ -507,6 +549,7 @@ export default function NotesPage() {
       noteType: 'text',
       course: currentCourseRef.current,
       whiteboardData: currentWhiteboardRef.current,
+      skipLivePrompt: true,
     });
   };
 
@@ -533,6 +576,49 @@ export default function NotesPage() {
       course: pendingCourse,
       noteType: currentNoteTypeRef.current,
       whiteboardData: currentWhiteboardRef.current,
+      skipLivePrompt: true,
+    });
+  };
+
+  const dismissLiveLectureLink = () => {
+    setShowLiveLinkModal(false);
+    setLiveLectureSuggestion(null);
+    setLiveLinkNoteId(null);
+  };
+
+  const confirmLiveLectureLink = async () => {
+    if (!liveLinkNoteId || !liveLectureSuggestion) {
+      dismissLiveLectureLink();
+      return;
+    }
+
+    const courseName = liveLectureSuggestion.courseName;
+    const noteId = liveLinkNoteId;
+
+    // Keep editor refs in sync if user is still on this note
+    if (activeNoteIdRef.current === noteId) {
+      currentCourseRef.current = courseName;
+    }
+
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, course: courseName } : n));
+    dismissLiveLectureLink();
+
+    await autoSave({
+      noteId,
+      title: activeNoteIdRef.current === noteId
+        ? currentTitleRef.current
+        : (notesRef.current.find(n => n.id === noteId)?.title || 'Untitled'),
+      content: activeNoteIdRef.current === noteId && currentNoteTypeRef.current === 'text'
+        ? (editor?.getHTML() || '')
+        : undefined,
+      course: courseName,
+      noteType: activeNoteIdRef.current === noteId
+        ? currentNoteTypeRef.current
+        : (notesRef.current.find(n => n.id === noteId)?.note_type || 'text'),
+      whiteboardData: activeNoteIdRef.current === noteId
+        ? currentWhiteboardRef.current
+        : (notesRef.current.find(n => n.id === noteId)?.whiteboard_data || createEmptyWhiteboard()),
+      skipLivePrompt: true,
     });
   };
 
@@ -705,6 +791,62 @@ export default function NotesPage() {
             </div>
           </div>
         )}
+
+      {showLiveLinkModal && liveLectureSuggestion && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 transition-all animate-fade-in">
+          <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 relative">
+            <button
+              onClick={dismissLiveLectureLink}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              aria-label="Dismiss"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl shrink-0 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                <GraduationCap size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Link note to current lecture?
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                  You appear to be in{' '}
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {liveLectureSuggestion.courseName}
+                  </span>
+                  {liveLectureSuggestion.courseCode ? (
+                    <> ({liveLectureSuggestion.courseCode})</>
+                  ) : null}
+                  {' '}right now ({liveLectureSuggestion.startTime}–{liveLectureSuggestion.endTime}).
+                  Do you want to save this note to that course?
+                </p>
+                {liveLectureSuggestion.location && (
+                  <p className="mt-2 text-xs font-semibold text-slate-400">
+                    Location: {liveLectureSuggestion.location}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 border-t border-slate-100 dark:border-slate-800/80 pt-4">
+              <button
+                onClick={dismissLiveLectureLink}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:text-slate-200 rounded-xl border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95"
+              >
+                Not now
+              </button>
+              <button
+                onClick={confirmLiveLectureLink}
+                className="px-4 py-2 text-xs font-bold text-white rounded-xl shadow-md transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700"
+              >
+                Yes, link to {liveLectureSuggestion.courseName}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {showLinkModal && (

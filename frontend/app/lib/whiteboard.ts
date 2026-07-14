@@ -104,7 +104,8 @@ export function parseWhiteboardData(raw: unknown): WhiteboardData {
             color: String(stroke.color || '#334155'),
             width: Math.max(1, Number(stroke.width) || 2),
           }))
-          .filter((stroke) => stroke.points.length > 1)
+          // Keep single-point strokes too — draw tool creates the stroke with 1 point first.
+          .filter((stroke) => stroke.points.length >= 1)
       : [],
     viewport: {
       x: Number(data.viewport?.x) || 0,

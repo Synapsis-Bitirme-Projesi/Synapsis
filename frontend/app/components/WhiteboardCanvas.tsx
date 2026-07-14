@@ -57,8 +57,10 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
 
   const boardRef = useRef<HTMLDivElement | null>(null);
   const dataRef = useRef(data);
+  const interactingRef = useRef(false);
+  const lastEmittedRef = useRef<string>(JSON.stringify(parseWhiteboardData(value)));
   const dragRef = useRef<{
-    mode: 'node' | 'pan' | 'draw' | null;
+    mode: 'node' | 'pan' | 'draw' | 'erase' | null;
     nodeId?: string;
     startX: number;
     startY: number;
@@ -71,19 +73,42 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     dataRef.current = data;
   }, [data]);
 
-  // Sync external value when switching notes
+  // Sync external value when switching notes / remote load — never while drawing/dragging
   useEffect(() => {
+    if (interactingRef.current) return;
     const next = parseWhiteboardData(value);
+    const serialized = JSON.stringify(next);
+    if (serialized === lastEmittedRef.current) return;
+    // Avoid clobbering in-progress local edits with a stale parent snapshot
+    if (serialized === JSON.stringify(dataRef.current)) return;
     setData(next);
     dataRef.current = next;
+    lastEmittedRef.current = serialized;
     setSelectedId(null);
   }, [value]);
+
+  const applyLocal = useCallback((updater: (prev: WhiteboardData) => WhiteboardData) => {
+    setData((prev) => {
+      const next = updater(prev);
+      dataRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const emitChange = useCallback(
+    (next: WhiteboardData) => {
+      lastEmittedRef.current = JSON.stringify(next);
+      onChange?.(next);
+    },
+    [onChange]
+  );
 
   const commit = useCallback(
     (updater: (prev: WhiteboardData) => WhiteboardData) => {
       setData((prev) => {
         const next = updater(prev);
         dataRef.current = next;
+        lastEmittedRef.current = JSON.stringify(next);
         onChange?.(next);
         return next;
       });
@@ -160,6 +185,7 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     const empty = createEmptyWhiteboard();
     setData(empty);
     dataRef.current = empty;
+    lastEmittedRef.current = JSON.stringify(empty);
     onChange?.(empty);
     setSelectedId(null);
   };
@@ -182,6 +208,7 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     const world = screenToWorld(e.clientX, e.clientY);
     const board = boardRef.current;
     board?.setPointerCapture(e.pointerId);
+    interactingRef.current = true;
 
     if (tool === 'pan' || e.shiftKey) {
       dragRef.current = {
@@ -210,7 +237,8 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
         originY: world.y,
         strokeId,
       };
-      commit((prev) => ({
+      // Local-only while drawing — parent sync was wiping strokes mid-stroke
+      applyLocal((prev) => ({
         ...prev,
         strokes: [...prev.strokes, stroke],
       }));
@@ -219,14 +247,20 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     }
 
     if (tool === 'erase') {
-      // erase strokes near pointer + deselect
-      commit((prev) => ({
+      dragRef.current = {
+        mode: 'erase',
+        startX: e.clientX,
+        startY: e.clientY,
+        originX: world.x,
+        originY: world.y,
+      };
+      applyLocal((prev) => ({
         ...prev,
         strokes: prev.strokes.filter((stroke) => {
           return !stroke.points.some(([x, y]) => {
             const dx = x - world.x;
             const dy = y - world.y;
-            return dx * dx + dy * dy < 20 * 20;
+            return dx * dx + dy * dy < 22 * 22;
           });
         }),
       }));
@@ -237,6 +271,7 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     // select tool: if clicked empty canvas, deselect
     if (!target.closest('[data-node-id]')) {
       setSelectedId(null);
+      interactingRef.current = false;
     }
   };
 
@@ -247,7 +282,7 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
     if (drag.mode === 'pan') {
       const dx = e.clientX - drag.startX;
       const dy = e.clientY - drag.startY;
-      commit((prev) => ({
+      applyLocal((prev) => ({
         ...prev,
         viewport: {
           ...prev.viewport,
@@ -260,13 +295,34 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
 
     if (drag.mode === 'draw' && drag.strokeId) {
       const world = screenToWorld(e.clientX, e.clientY);
-      commit((prev) => ({
+      applyLocal((prev) => ({
         ...prev,
-        strokes: prev.strokes.map((s) =>
-          s.id === drag.strokeId
-            ? { ...s, points: [...s.points, [world.x, world.y] as [number, number]] }
-            : s
-        ),
+        strokes: prev.strokes.map((s) => {
+          if (s.id !== drag.strokeId) return s;
+          const last = s.points[s.points.length - 1];
+          // Skip tiny jitter so paths stay smooth
+          if (last) {
+            const ddx = world.x - last[0];
+            const ddy = world.y - last[1];
+            if (ddx * ddx + ddy * ddy < 0.8) return s;
+          }
+          return { ...s, points: [...s.points, [world.x, world.y] as [number, number]] };
+        }),
+      }));
+      return;
+    }
+
+    if (drag.mode === 'erase') {
+      const world = screenToWorld(e.clientX, e.clientY);
+      applyLocal((prev) => ({
+        ...prev,
+        strokes: prev.strokes.filter((stroke) => {
+          return !stroke.points.some(([x, y]) => {
+            const dx = x - world.x;
+            const dy = y - world.y;
+            return dx * dx + dy * dy < 22 * 22;
+          });
+        }),
       }));
       return;
     }
@@ -275,25 +331,53 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
       const zoom = dataRef.current.viewport.zoom || 1;
       const dx = (e.clientX - drag.startX) / zoom;
       const dy = (e.clientY - drag.startY) / zoom;
-      updateNode(drag.nodeId, {
-        x: drag.originX + dx,
-        y: drag.originY + dy,
-      });
+      applyLocal((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) =>
+          n.id === drag.nodeId
+            ? { ...n, x: drag.originX + dx, y: drag.originY + dy }
+            : n
+        ),
+      }));
     }
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const drag = dragRef.current;
     dragRef.current = null;
+    interactingRef.current = false;
+
     try {
       boardRef.current?.releasePointerCapture(e.pointerId);
     } catch {
       // ignore
+    }
+
+    // Persist finished interaction (draw / pan / erase / node drag)
+    if (drag) {
+      const next = dataRef.current;
+      // Drop accidental single-dot strokes that never moved
+      if (drag.mode === 'draw' && drag.strokeId) {
+        const stroke = next.strokes.find((s) => s.id === drag.strokeId);
+        if (stroke && stroke.points.length < 2) {
+          const cleaned = {
+            ...next,
+            strokes: next.strokes.filter((s) => s.id !== drag.strokeId),
+          };
+          dataRef.current = cleaned;
+          setData(cleaned);
+          emitChange(cleaned);
+          return;
+        }
+      }
+      emitChange(next);
     }
   };
 
   const startNodeDrag = (e: React.PointerEvent, node: WhiteboardNode) => {
     if (tool !== 'select') return;
     e.stopPropagation();
+    interactingRef.current = true;
     setSelectedId(node.id);
     dragRef.current = {
       mode: 'node',
