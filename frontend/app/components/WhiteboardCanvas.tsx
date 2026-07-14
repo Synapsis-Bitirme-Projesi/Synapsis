@@ -48,6 +48,96 @@ function pointsToPath(points: Array<[number, number]>) {
     .join(' ');
 }
 
+/** Squared distance from point P to segment AB. */
+function dist2PointToSegment(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number
+): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 <= 0) return apx * apx + apy * apy;
+  let t = (apx * abx + apy * aby) / ab2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * abx;
+  const cy = ay + t * aby;
+  const dx = px - cx;
+  const dy = py - cy;
+  return dx * dx + dy * dy;
+}
+
+/**
+ * Soft eraser: remove only ink near the pointer and split remaining
+ * fragments into new strokes (never wipe an entire stroke from one touch).
+ */
+function eraseStrokesNear(
+  strokes: WhiteboardStroke[],
+  wx: number,
+  wy: number,
+  radius: number
+): WhiteboardStroke[] {
+  const r2 = radius * radius;
+  const next: WhiteboardStroke[] = [];
+
+  for (const stroke of strokes) {
+    if (!stroke.points.length) continue;
+
+    // Mark points that sit inside the eraser brush
+    const hit = stroke.points.map(([x, y]) => {
+      const dx = x - wx;
+      const dy = y - wy;
+      return dx * dx + dy * dy <= r2;
+    });
+
+    // Also mark endpoints of segments the brush crosses (sparse points)
+    for (let i = 0; i < stroke.points.length - 1; i++) {
+      const [ax, ay] = stroke.points[i];
+      const [bx, by] = stroke.points[i + 1];
+      if (dist2PointToSegment(wx, wy, ax, ay, bx, by) <= r2) {
+        hit[i] = true;
+        hit[i + 1] = true;
+      }
+    }
+
+    // If nothing was hit, keep the stroke as-is
+    if (!hit.some(Boolean)) {
+      next.push(stroke);
+      continue;
+    }
+
+    // Split into kept fragments (need ≥2 points to remain drawable)
+    let fragment: Array<[number, number]> = [];
+    const flush = () => {
+      if (fragment.length >= 2) {
+        next.push({
+          id: createId('stroke'),
+          points: fragment,
+          color: stroke.color,
+          width: stroke.width,
+        });
+      }
+      fragment = [];
+    };
+
+    for (let i = 0; i < stroke.points.length; i++) {
+      if (hit[i]) {
+        flush();
+      } else {
+        fragment.push(stroke.points[i]);
+      }
+    }
+    flush();
+  }
+
+  return next;
+}
+
 export default function WhiteboardCanvas({ value, onChange, className = '' }: WhiteboardCanvasProps) {
   const [data, setData] = useState<WhiteboardData>(() => parseWhiteboardData(value));
   const [tool, setTool] = useState<Tool>('select');
@@ -254,15 +344,12 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
         originX: world.x,
         originY: world.y,
       };
+      const zoom = dataRef.current.viewport.zoom || 1;
+      // ~12px screen brush — only carves local ink, not whole strokes
+      const radius = 12 / zoom;
       applyLocal((prev) => ({
         ...prev,
-        strokes: prev.strokes.filter((stroke) => {
-          return !stroke.points.some(([x, y]) => {
-            const dx = x - world.x;
-            const dy = y - world.y;
-            return dx * dx + dy * dy < 22 * 22;
-          });
-        }),
+        strokes: eraseStrokesNear(prev.strokes, world.x, world.y, radius),
       }));
       setSelectedId(null);
       return;
@@ -314,15 +401,11 @@ export default function WhiteboardCanvas({ value, onChange, className = '' }: Wh
 
     if (drag.mode === 'erase') {
       const world = screenToWorld(e.clientX, e.clientY);
+      const zoom = dataRef.current.viewport.zoom || 1;
+      const radius = 12 / zoom;
       applyLocal((prev) => ({
         ...prev,
-        strokes: prev.strokes.filter((stroke) => {
-          return !stroke.points.some(([x, y]) => {
-            const dx = x - world.x;
-            const dy = y - world.y;
-            return dx * dx + dy * dy < 22 * 22;
-          });
-        }),
+        strokes: eraseStrokesNear(prev.strokes, world.x, world.y, radius),
       }));
       return;
     }
