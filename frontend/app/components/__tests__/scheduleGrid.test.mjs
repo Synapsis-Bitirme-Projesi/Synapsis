@@ -57,7 +57,7 @@ test('buildScheduleGrid keeps cross-course overlaps in the same slot', () => {
   assert.deepEqual(grid[3]['11:00'].map((course) => course.course_name), ['Databases', 'Operating Systems']);
 });
 
-test('getCourseSpanHeight grows with overlapping entries and duration', () => {
+test('getCourseSpanHeight follows duration for side-by-side overlaps', () => {
   const courses = [
     {
       id: 21,
@@ -77,7 +77,34 @@ test('getCourseSpanHeight grows with overlapping entries and duration', () => {
     },
   ];
 
+  // 09:00-11:00 spans 2 slots => 2 * 80 - 8 = 152
+  // Overlaps share width, so height is duration-based only.
   const height = getCourseSpanHeight('09:00', courses, timeSlots);
 
   assert.equal(height, 152);
+});
+
+test('getCourseSpanHeight keeps single-hour overlaps inside one row', () => {
+  const courses = [
+    {
+      id: 31,
+      course_name: 'TEST',
+      course_code: 'CSE101',
+      day_of_week: 1,
+      start_time: '08:00',
+      end_time: '09:00',
+    },
+    {
+      id: 32,
+      course_name: 'AYT',
+      course_code: 'CSE102',
+      day_of_week: 1,
+      start_time: '08:00',
+      end_time: '09:00',
+    },
+  ];
+
+  const height = getCourseSpanHeight('08:00', courses, timeSlots);
+
+  assert.equal(height, 72);
 });

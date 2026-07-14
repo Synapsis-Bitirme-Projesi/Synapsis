@@ -18,15 +18,16 @@ export const buildScheduleGrid = (courseList) => {
   }, {});
 };
 
+const SLOT_HEIGHT = 80;
+const BLOCK_GAP = 8;
+
 export const getCourseSpanHeight = (slotTime, slotCourses = [], timeSlots = []) => {
-  // Eğer timeSlots gelmediyse veya boş bir diziyse çökme, direkt varsayılan yükseklik dön
+  // Side-by-side overlap layout: height follows duration, not course count.
   if (!timeSlots || timeSlots.length === 0) {
-    return slotCourses.length * 56 || 72;
+    return SLOT_HEIGHT - BLOCK_GAP;
   }
 
   const startIdx = timeSlots.indexOf(slotTime);
-
-  // Eğer slotTime dizi içinde bulunamazsa startIdx -1 olur, bunu 0'a eşitleyelim güvenli olsun
   const safeStartIdx = startIdx === -1 ? 0 : startIdx;
 
   const furthestEndIdx = slotCourses.reduce((maxIdx, course) => {
@@ -35,5 +36,5 @@ export const getCourseSpanHeight = (slotTime, slotCourses = [], timeSlots = []) 
   }, safeStartIdx + 1);
 
   const span = furthestEndIdx > safeStartIdx ? furthestEndIdx - safeStartIdx : 1;
-  return Math.max(span * 80 - 8, slotCourses.length * 56);
+  return Math.max(span * SLOT_HEIGHT - BLOCK_GAP, SLOT_HEIGHT - BLOCK_GAP);
 };

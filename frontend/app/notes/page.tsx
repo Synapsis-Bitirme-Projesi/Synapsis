@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -11,10 +11,23 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Focus from '@tiptap/extension-focus';
 import Suggestion from '@tiptap/suggestion';
 import axios from 'axios';
-import { Plus, Trash2, FileText, GraduationCap, AlertCircle, X } from 'lucide-react';
-
-// Sabit ders listemiz (Dilersen veritabanından veya ortak bir state'ten de besleyebilirsin)
-const AVAILABLE_COURSES = ['Physics', 'Calculus', 'Software Engineering', 'Robotics'];
+import {
+  Plus,
+  Trash2,
+  FileText,
+  GraduationCap,
+  AlertCircle,
+  X,
+  LayoutGrid,
+  Type,
+} from 'lucide-react';
+import WhiteboardCanvas from '../components/WhiteboardCanvas';
+import {
+  WhiteboardData,
+  createEmptyWhiteboard,
+  parseWhiteboardData,
+  whiteboardToPlainText,
+} from '../lib/whiteboard';
 
 // Custom slash commands
 const slashCommands = [
@@ -57,7 +70,6 @@ const SlashCommand = Suggestion({
   },
   render: () => {
     let component: any;
-    let popup: any;
 
     return {
       onStart: (props: any) => {
@@ -75,10 +87,9 @@ const SlashCommand = Suggestion({
             .join('')}
           </div>
         `;
-        popup = component.querySelector('div')!;
         document.body.appendChild(component);
 
-        popup.addEventListener('click', (e: any) => {
+        component.querySelector('div')!.addEventListener('click', (e: any) => {
           const index = (e.target as HTMLElement).dataset.index;
           if (index !== undefined) {
             slashCommands[parseInt(index!)].command(props);
@@ -117,50 +128,121 @@ const SlashCommand = Suggestion({
   }
 });
 
+type NoteType = 'text' | 'whiteboard';
+
 interface Note {
   id: number;
   title: string;
   content: string;
-  course: string | null; // Phase 3: Ders ilişkisi alanı
+  course: string | null;
+  note_type: NoteType;
+  whiteboard_data: WhiteboardData;
+}
+
+function normalizeNote(raw: any): Note {
+  return {
+    id: raw.id,
+    title: raw.title || 'Untitled',
+    content: raw.content || '',
+    course: raw.course || raw.course_name || null,
+    note_type: raw.note_type === 'whiteboard' ? 'whiteboard' : 'text',
+    whiteboard_data: parseWhiteboardData(raw.whiteboard_data),
+  };
 }
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<number | null>(null);
   const [currentTitle, setCurrentTitle] = useState('');
+  const [availableCourses, setAvailableCourses] = useState<string[]>([]);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  // Phase 3 Modal ve Pop-up State'leri
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [pendingCourse, setPendingCourse] = useState<string | null>(null);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeNoteIdRef = useRef<number | null>(null);
   const currentTitleRef = useRef<string>('');
+  const currentCourseRef = useRef<string | null>(null);
+  const currentNoteTypeRef = useRef<NoteType>('text');
+  const currentWhiteboardRef = useRef<WhiteboardData>(createEmptyWhiteboard());
+  const notesRef = useRef<Note[]>([]);
 
   const getToken = () => localStorage.getItem('token');
 
-  // AutoSave backend isteğini course ve tags ile besliyoruz
-  const currentCourseRef = useRef<string | null>(null);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
 
-  const autoSave = useCallback(async (html: string, noteId: number, title: string, courseVal?: string | null) => {
+  const autoSave = useCallback(async (payload: {
+    noteId: number;
+    title: string;
+    content?: string;
+    course?: string | null;
+    noteType?: NoteType;
+    whiteboardData?: WhiteboardData;
+  }) => {
     try {
       const token = getToken();
+      if (!token) return;
 
-      // Eğer courseVal undefined gelirse, state'deki mevcut değeri koru (ezmesini engelle!)
-      const finalCourse = courseVal !== undefined ? courseVal : currentCourseRef.current;
+      const finalCourse = payload.course !== undefined ? payload.course : currentCourseRef.current;
+      const noteType = payload.noteType || currentNoteTypeRef.current;
+      const whiteboardData = payload.whiteboardData || currentWhiteboardRef.current;
+      const content = noteType === 'whiteboard'
+        ? whiteboardToPlainText(whiteboardData, payload.title)
+        : (payload.content ?? '');
 
-      await axios.put(`http://localhost:5000/api/notes/${noteId}`, {
-        title,
-        content: html,
+      setSaveState('saving');
+
+      await axios.put(`http://localhost:5000/api/notes/${payload.noteId}`, {
+        title: payload.title,
+        content,
         course: finalCourse,
-        courseName: finalCourse
+        courseName: finalCourse,
+        note_type: noteType,
+        whiteboard_data: whiteboardData,
       }, { headers: { Authorization: `Bearer ${token}` } });
 
-      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, content: html, title, course: finalCourse } : n));
+      setNotes(prev => prev.map(n => n.id === payload.noteId ? {
+        ...n,
+        content,
+        title: payload.title,
+        course: finalCourse ?? null,
+        note_type: noteType,
+        whiteboard_data: whiteboardData,
+      } : n));
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 1200);
     } catch (err) {
       console.error('Auto-save failed:', err);
+      setSaveState('error');
     }
   }, []);
+
+  const scheduleSave = useCallback((overrides?: {
+    content?: string;
+    title?: string;
+    course?: string | null;
+    noteType?: NoteType;
+    whiteboardData?: WhiteboardData;
+  }) => {
+    const noteId = activeNoteIdRef.current;
+    if (!noteId) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      autoSave({
+        noteId,
+        title: overrides?.title ?? currentTitleRef.current,
+        content: overrides?.content,
+        course: overrides?.course,
+        noteType: overrides?.noteType,
+        whiteboardData: overrides?.whiteboardData,
+      });
+    }, 900);
+  }, [autoSave]);
 
   const editor = useEditor({
     extensions: [
@@ -185,94 +267,135 @@ export default function NotesPage() {
         class: `prose prose-neutral max-w-none p-12 prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:my-4 prose-li:my-2 focus:outline-none min-h-[70vh] bg-white dark:bg-slate-900 dark:prose-invert prose-a:text-blue-500 hover:prose-a:text-blue-600`,
       },
     },
-    onUpdate: ({ editor }) => {
-      if (!editor.isFocused) return; // Kullanıcı aktif yazmıyorsa asla tetikleme!
-
-      const noteId = activeNoteIdRef.current;
-      const title = currentTitleRef.current;
-      const course = currentCourseRef.current; // Güncel referansı zorla al
-      if (!noteId) return;
-
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        // 4. parametre olarak güncel dersi KESİNLİKLE gönderiyoruz
-        autoSave(editor.getHTML(), noteId, title, course);
-      }, 1000); // Süreyi 1 saniyeye çektik ki çakışma ihtimali azalsın
+    onUpdate: ({ editor: ed }) => {
+      if (!ed.isFocused) return;
+      if (currentNoteTypeRef.current !== 'text') return;
+      if (!activeNoteIdRef.current) return;
+      scheduleSave({ content: ed.getHTML() });
     },
   });
 
-  // Load notes on mount
   useEffect(() => {
     const fetchNotes = async () => {
       try {
         const token = getToken();
         if (!token) return;
-        const res = await axios.get('http://localhost:5000/api/notes', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const fetched: Note[] = (res.data as any[]).map((n: any) => ({
-          id: n.id,
-          title: n.title,
-          content: n.content || '',
-          course: n.course || null, // Veritabanından gelen tam 'course' alanı
-        }));
+
+        const [notesRes, coursesRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/notes', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          axios.get('http://localhost:5000/api/courses', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+        ]);
+
+        const fetched: Note[] = (notesRes.data as any[]).map(normalizeNote);
         setNotes(fetched);
+
+        const courseNames = Array.from(
+          new Set(
+            (coursesRes.data as any[])
+              .map((c: any) => c.course_name || c.name || c.title)
+              .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        setAvailableCourses(courseNames);
+
         if (fetched.length > 0) {
-          setActiveNoteId(fetched[0].id);
-          activeNoteIdRef.current = fetched[0].id;
-          setCurrentTitle(fetched[0].title);
-          currentTitleRef.current = fetched[0].title;
-          currentCourseRef.current = fetched[0].course; // İlk notun ders referansını da yüklüyoruz!
+          const first = fetched[0];
+          setActiveNoteId(first.id);
+          activeNoteIdRef.current = first.id;
+          setCurrentTitle(first.title);
+          currentTitleRef.current = first.title;
+          currentCourseRef.current = first.course;
+          currentNoteTypeRef.current = first.note_type;
+          currentWhiteboardRef.current = first.whiteboard_data;
         }
       } catch (err) {
-        console.error('Notlar yüklenemedi:', err);
+        console.error('Notes could not be loaded:', err);
       }
     };
     fetchNotes();
   }, []);
 
-  // Load selected note into editor
+  // Load selected note into editor / whiteboard refs
   useEffect(() => {
-    if (!editor || activeNoteId === null) return;
+    if (activeNoteId === null) return;
     const note = notes.find(n => n.id === activeNoteId);
-    if (note) {
+    if (!note) return;
+
+    currentNoteTypeRef.current = note.note_type;
+    currentWhiteboardRef.current = note.whiteboard_data;
+    currentCourseRef.current = note.course;
+
+    if (note.note_type === 'text' && editor) {
       editor.commands.setContent(note.content || '', { emitUpdate: false });
     }
   }, [activeNoteId, editor]);
 
-  const selectNote = (note: Note) => {
+  const flushActiveNote = async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    if (activeNoteIdRef.current && editor) {
-      autoSave(editor.getHTML(), activeNoteIdRef.current, currentTitleRef.current, currentCourseRef.current);
-    }
+    const noteId = activeNoteIdRef.current;
+    if (!noteId) return;
+
+    const noteType = currentNoteTypeRef.current;
+    await autoSave({
+      noteId,
+      title: currentTitleRef.current,
+      content: noteType === 'text' ? (editor?.getHTML() || '') : undefined,
+      course: currentCourseRef.current,
+      noteType,
+      whiteboardData: currentWhiteboardRef.current,
+    });
+  };
+
+  const selectNote = async (note: Note) => {
+    if (note.id === activeNoteIdRef.current) return;
+    await flushActiveNote();
+
     setActiveNoteId(note.id);
     activeNoteIdRef.current = note.id;
     setCurrentTitle(note.title);
     currentTitleRef.current = note.title;
-    currentCourseRef.current = note.course; // Bu satırı ekledik!
+    currentCourseRef.current = note.course;
+    currentNoteTypeRef.current = note.note_type;
+    currentWhiteboardRef.current = note.whiteboard_data;
   };
 
-  const createNewNote = async () => {
+  const createNewNote = async (noteType: NoteType = 'text') => {
     try {
+      setShowCreateMenu(false);
+      await flushActiveNote();
+
       const token = getToken();
+      const whiteboard = createEmptyWhiteboard();
       const res = await axios.post('http://localhost:5000/api/notes', {
-        title: 'New Note',
+        title: noteType === 'whiteboard' ? 'New Whiteboard' : 'New Note',
         content: '',
         course: null,
-        tags: []
+        note_type: noteType,
+        whiteboard_data: whiteboard,
       }, { headers: { Authorization: `Bearer ${token}` } });
-      const newNote: Note = { id: res.data.id, title: res.data.title, content: res.data.content || '', course: null };
+
+      const newNote = normalizeNote(res.data);
       setNotes(prev => [newNote, ...prev]);
       setActiveNoteId(newNote.id);
       activeNoteIdRef.current = newNote.id;
       setCurrentTitle(newNote.title);
       currentTitleRef.current = newNote.title;
-      editor?.commands.setContent('', { emitUpdate: false });
+      currentCourseRef.current = null;
+      currentNoteTypeRef.current = newNote.note_type;
+      currentWhiteboardRef.current = newNote.whiteboard_data;
+
+      if (newNote.note_type === 'text') {
+        editor?.commands.setContent('', { emitUpdate: false });
+      }
     } catch (err) {
-      console.error('Not oluşturulamadı:', err);
+      console.error('Note could not be created:', err);
     }
   };
 
@@ -287,38 +410,106 @@ export default function NotesPage() {
       setNotes(remaining);
       if (activeNoteId === noteId) {
         if (remaining.length > 0) {
-          setActiveNoteId(remaining[0].id);
-          activeNoteIdRef.current = remaining[0].id;
-          setCurrentTitle(remaining[0].title);
-          currentTitleRef.current = remaining[0].title;
+          const next = remaining[0];
+          setActiveNoteId(next.id);
+          activeNoteIdRef.current = next.id;
+          setCurrentTitle(next.title);
+          currentTitleRef.current = next.title;
+          currentCourseRef.current = next.course;
+          currentNoteTypeRef.current = next.note_type;
+          currentWhiteboardRef.current = next.whiteboard_data;
         } else {
           setActiveNoteId(null);
           activeNoteIdRef.current = null;
           setCurrentTitle('');
           currentTitleRef.current = '';
+          currentCourseRef.current = null;
+          currentNoteTypeRef.current = 'text';
+          currentWhiteboardRef.current = createEmptyWhiteboard();
           editor?.commands.setContent('', { emitUpdate: false });
         }
       }
     } catch (err) {
-      console.error('Not silinemedi:', err);
+      console.error('Note could not be deleted:', err);
     }
   };
 
   const handleTitleChange = (newTitle: string) => {
     setCurrentTitle(newTitle);
     currentTitleRef.current = newTitle;
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-
-    if (activeNoteIdRef.current && editor) {
-      saveTimerRef.current = setTimeout(() => {
-        // Dördüncü parametre olarak güncel ders referansını (currentCourseRef.current) ekledik!
-        autoSave(editor.getHTML(), activeNoteIdRef.current!, newTitle, currentCourseRef.current);
-      }, 800);
-    }
+    scheduleSave({
+      title: newTitle,
+      content: currentNoteTypeRef.current === 'text' ? (editor?.getHTML() || '') : undefined,
+      whiteboardData: currentWhiteboardRef.current,
+    });
   };
 
-  // Phase 3: Kullanıcı bir ders seçtiğinde veya unlink etmek istediğinde modalı tetikler
+  const handleWhiteboardChange = (board: WhiteboardData) => {
+    currentWhiteboardRef.current = board;
+    setNotes(prev => prev.map(n => n.id === activeNoteIdRef.current ? { ...n, whiteboard_data: board, note_type: 'whiteboard' } : n));
+    scheduleSave({
+      noteType: 'whiteboard',
+      whiteboardData: board,
+    });
+  };
+
+  const convertActiveNote = async (nextType: NoteType) => {
+    const noteId = activeNoteIdRef.current;
+    if (!noteId) return;
+    if (currentNoteTypeRef.current === nextType) return;
+
+    if (nextType === 'whiteboard') {
+      // Seed whiteboard with a text node from existing HTML if empty
+      let board = currentWhiteboardRef.current;
+      if (!board.nodes.length) {
+        const plain = (editor?.getText() || '').trim();
+        if (plain) {
+          board = {
+            ...createEmptyWhiteboard(),
+            nodes: [{
+              id: `seed_${Date.now()}`,
+              type: 'text',
+              x: 80,
+              y: 80,
+              w: 280,
+              h: 160,
+              text: plain,
+              color: '#3B82F6',
+            }],
+          };
+        }
+      }
+      currentNoteTypeRef.current = 'whiteboard';
+      currentWhiteboardRef.current = board;
+      setNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_type: 'whiteboard', whiteboard_data: board } : n));
+      await autoSave({
+        noteId,
+        title: currentTitleRef.current,
+        noteType: 'whiteboard',
+        whiteboardData: board,
+        course: currentCourseRef.current,
+      });
+      return;
+    }
+
+    // Convert whiteboard -> text: put plain export into editor
+    const plain = whiteboardToPlainText(currentWhiteboardRef.current, '');
+    const html = plain
+      ? plain.split(/\n\n+/).map(p => `<p>${p.replace(/\n/g, '<br/>')}</p>`).join('')
+      : '<p></p>';
+    currentNoteTypeRef.current = 'text';
+    editor?.commands.setContent(html, { emitUpdate: false });
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_type: 'text', content: html } : n));
+    await autoSave({
+      noteId,
+      title: currentTitleRef.current,
+      content: html,
+      noteType: 'text',
+      course: currentCourseRef.current,
+      whiteboardData: currentWhiteboardRef.current,
+    });
+  };
+
   const handleCourseSelectIntent = (courseValue: string) => {
     if (courseValue === 'unlink') {
       setPendingCourse(null);
@@ -328,49 +519,58 @@ export default function NotesPage() {
     setShowLinkModal(true);
   };
 
-  // Phase 3: Onay Pop-up'ında onay verildiğinde çalışacak fonksiyon
-  // Phase 3: Onay Pop-up'ında onay verildiğinde hem state'i hem veritabanını güncelliyoruz
   const confirmCourseLinking = async () => {
-    if (!activeNoteId || !editor) return;
+    if (!activeNoteId) return;
     setShowLinkModal(false);
 
-    // Referansı anında güncelle ki peşinden gelecek auto-save ezmesin!
     currentCourseRef.current = pendingCourse;
     setNotes(prev => prev.map(n => n.id === activeNoteId ? { ...n, course: pendingCourse } : n));
 
-    try {
-      const token = getToken();
-      // GARANTİ ADIM: Hem course hem courseName gönderiyoruz!
-      await axios.put(`http://localhost:5000/api/notes/${activeNoteId}`, {
-        title: currentTitle,
-        content: editor.getHTML(),
-        course: pendingCourse,
-        courseName: pendingCourse
-      }, { headers: { Authorization: `Bearer ${token}` } });
-
-      console.log("Ders bağlantı isteği başarıyla gönderildi!");
-    } catch (err) {
-      console.error("Ders kaydedilirken hata:", err);
-    }
+    await autoSave({
+      noteId: activeNoteId,
+      title: currentTitleRef.current,
+      content: currentNoteTypeRef.current === 'text' ? (editor?.getHTML() || '') : undefined,
+      course: pendingCourse,
+      noteType: currentNoteTypeRef.current,
+      whiteboardData: currentWhiteboardRef.current,
+    });
   };
 
   const activeNote = notes.find(n => n.id === activeNoteId);
+  const isWhiteboard = activeNote?.note_type === 'whiteboard';
 
   if (!editor) return <div className="flex items-center justify-center h-screen">Loading editor...</div>;
 
   return (
     <div className="min-h-screen bg-transparent flex relative">
-
-      {/* LEFT PANEL - Notes List */}
+      {/* LEFT PANEL */}
       <aside className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-[#111113]">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 relative">
           <button
-            onClick={createNewNote}
+            onClick={() => setShowCreateMenu(v => !v)}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all active:scale-95"
           >
             <Plus size={16} />
             New Note
           </button>
+          {showCreateMenu && (
+            <div className="absolute left-4 right-4 top-[4.25rem] z-20 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+              <button
+                onClick={() => createNewNote('text')}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Type size={15} className="text-blue-500" />
+                Text note
+              </button>
+              <button
+                onClick={() => createNewNote('whiteboard')}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <LayoutGrid size={15} className="text-violet-500" />
+                Whiteboard
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {notes.length === 0 ? (
@@ -383,7 +583,11 @@ export default function NotesPage() {
                 className={`group flex flex-col gap-1 px-4 py-3 cursor-pointer border-b border-slate-100 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors ${activeNoteId === note.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-l-blue-500' : ''}`}
               >
                 <div className="flex items-center gap-2">
-                  <FileText size={14} className="text-slate-400 shrink-0" />
+                  {note.note_type === 'whiteboard' ? (
+                    <LayoutGrid size={14} className="text-violet-500 shrink-0" />
+                  ) : (
+                    <FileText size={14} className="text-slate-400 shrink-0" />
+                  )}
                   <span className="flex-1 text-sm font-bold text-slate-700 dark:text-slate-300 truncate">
                     {note.title || 'Untitled'}
                   </span>
@@ -395,26 +599,29 @@ export default function NotesPage() {
                   </button>
                 </div>
 
-                {/* Phase 3: Sol Listedeki Not Kartında Bağlı Dersi Gösterme */}
-                {note.course && (
-                  <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md self-start">
-                    <GraduationCap size={12} />
-                    <span>{note.course}</span>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${note.note_type === 'whiteboard' ? 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {note.note_type === 'whiteboard' ? 'Board' : 'Text'}
+                  </span>
+                  {note.course && (
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md">
+                      <GraduationCap size={12} />
+                      <span>{note.course}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
       </aside>
 
-      {/* RIGHT PANEL - Editor */}
+      {/* RIGHT PANEL */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#0d0d0f]">
         {activeNoteId ? (
           <>
-            {/* EDITOR HEADER */}
-            <div className="px-8 pt-6 pb-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-              <div className="flex-1">
+            <div className="px-6 pt-5 pb-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex-1 min-w-[200px]">
                 <input
                   type="text"
                   value={currentTitle}
@@ -422,31 +629,71 @@ export default function NotesPage() {
                   className="w-full text-2xl font-bold bg-transparent outline-none text-slate-900 dark:text-white placeholder-slate-400"
                   placeholder="Note title..."
                 />
+                <div className="mt-1 text-[11px] font-semibold text-slate-400">
+                  {saveState === 'saving' && 'Saving...'}
+                  {saveState === 'saved' && 'Saved'}
+                  {saveState === 'error' && 'Save failed'}
+                  {saveState === 'idle' && (isWhiteboard ? 'Whiteboard autosave on' : 'Text autosave on')}
+                </div>
               </div>
 
-              {/* Phase 3: Ders İlişkilendirme Dropdown ve Editör Header Bağlantısı */}
-              <div className="flex items-center gap-2">
-                <GraduationCap size={18} className={activeNote?.course ? "text-blue-500" : "text-slate-400"} />
-                <select
-                  value={activeNote?.course || ''}
-                  onChange={(e) => handleCourseSelectIntent(e.target.value)}
-                  className="text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-                >
-                  <option value="" disabled>Course Bağla...</option>
-                  {AVAILABLE_COURSES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                  {activeNote?.course && (
-                    <option value="unlink" className="text-rose-500 font-bold">⚠️ Bağlantıyı Kaldır</option>
-                  )}
-                </select>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => convertActiveNote('text')}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${!isWhiteboard ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
+                  >
+                    <Type size={13} />
+                    Text
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => convertActiveNote('whiteboard')}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${isWhiteboard ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}
+                  >
+                    <LayoutGrid size={13} />
+                    Board
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <GraduationCap size={18} className={activeNote?.course ? 'text-blue-500' : 'text-slate-400'} />
+                  <select
+                    value={activeNote?.course || ''}
+                    onChange={(e) => handleCourseSelectIntent(e.target.value)}
+                    className="text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+                  >
+                    <option value="" disabled>
+                      {availableCourses.length > 0 ? 'Link course...' : 'No courses yet'}
+                    </option>
+                    {availableCourses.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    {activeNote?.course && !availableCourses.includes(activeNote.course) && (
+                      <option value={activeNote.course}>{activeNote.course}</option>
+                    )}
+                    {activeNote?.course && (
+                      <option value="unlink" className="text-rose-500 font-bold">Unlink course</option>
+                    )}
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              <div className="editor-container relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 m-4">
-                <EditorContent editor={editor} />
-              </div>
+            <div className={`flex-1 ${isWhiteboard ? 'overflow-hidden p-3 sm:p-4' : 'overflow-y-auto'}`}>
+              {isWhiteboard ? (
+                <WhiteboardCanvas
+                  key={`wb-${activeNoteId}`}
+                  value={activeNote?.whiteboard_data}
+                  onChange={handleWhiteboardChange}
+                  className="h-[calc(100vh-11rem)] min-h-[28rem]"
+                />
+              ) : (
+                <div className="editor-container relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-1 m-4">
+                  <EditorContent editor={editor} />
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -454,12 +701,12 @@ export default function NotesPage() {
             <div className="text-center">
               <FileText size={48} className="mx-auto mb-4 opacity-30" />
               <p className="text-lg font-bold">Select a note or create a new one</p>
+              <p className="mt-2 text-sm">Text notes and whiteboards are both supported.</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Phase 3: CONFIRMATION POP-UP (MODAL) */}
       {showLinkModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 transition-all animate-fade-in">
           <div className="bg-white dark:bg-[#111113] border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 relative">
@@ -476,13 +723,13 @@ export default function NotesPage() {
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {pendingCourse ? 'Ders Bağlantısını Onayla' : 'Ders Bağlantısını Kaldır'}
+                  {pendingCourse ? 'Confirm course link' : 'Unlink course'}
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed">
                   {pendingCourse ? (
-                    <>Bu notu resmi olarak <span className="font-bold text-slate-800 dark:text-slate-200">"{pendingCourse}"</span> dersine bağlamak istiyor musunuz? Yapay zeka asistanı bu dersle ilgili üretim yaparken bu notun içeriğini referans alacaktır.</>
+                    <>Link this note to <span className="font-bold text-slate-800 dark:text-slate-200">"{pendingCourse}"</span>? The AI assistant will use this note when generating study material for that course.</>
                   ) : (
-                    <>Bu notun mevcut ders bağlantısını kaldırmak istediğinize emin misiniz? Not içeriğiniz silinmeyecek, ancak yapay zeka asistanı bu ders için döküman üretirken artık bu notu taramayacaktır.</>
+                    <>Unlink this note from its course? The note content stays, but the assistant will no longer treat it as course-specific source material.</>
                   )}
                 </p>
               </div>
@@ -493,19 +740,18 @@ export default function NotesPage() {
                 onClick={() => setShowLinkModal(false)}
                 className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:text-slate-400 dark:hover:text-slate-200 rounded-xl border border-slate-200/60 dark:border-slate-700/60 transition-all active:scale-95"
               >
-                Vazgeç
+                Cancel
               </button>
               <button
                 onClick={confirmCourseLinking}
                 className={`px-4 py-2 text-xs font-bold text-white rounded-xl shadow-md transition-all active:scale-95 ${pendingCourse ? 'bg-blue-600 hover:bg-blue-700' : 'bg-rose-600 hover:bg-rose-700'}`}
               >
-                {pendingCourse ? 'Evet, Bağla' : 'Evet, Bağlantıyı Kopar'}
+                {pendingCourse ? 'Yes, link' : 'Yes, unlink'}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -34,15 +34,19 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at  TIMESTAMP DEFAULT NOW()
 );
 
--- Notes table (optionally linked to a course)
+-- Notes table (optionally linked to a course; supports text + whiteboard modes)
 CREATE TABLE IF NOT EXISTS notes (
-  id         SERIAL PRIMARY KEY,
-  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  course_id  INTEGER REFERENCES courses(id) ON DELETE SET NULL,
-  title      VARCHAR(255) NOT NULL,
-  content    TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  id               SERIAL PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  course_id        INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+  title            VARCHAR(255) NOT NULL,
+  content          TEXT,
+  course           VARCHAR(255),
+  course_name      VARCHAR(255),
+  note_type        VARCHAR(20) DEFAULT 'text',
+  whiteboard_data  JSONB DEFAULT '{}'::jsonb,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
 );
 
 -- Notebook AI sources

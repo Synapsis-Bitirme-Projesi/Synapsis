@@ -35,8 +35,15 @@ interface NotebookNote {
     id: number;
     title: string;
     content?: string | null;
+    course?: string | null;
+    course_name?: string | null;
     created_at?: string;
     updated_at?: string;
+}
+
+interface CourseOption {
+    id: number;
+    course_name: string;
 }
 
 type AssistantMode = "chat" | "summary" | "questions" | "cards" | "compare" | "explain";
@@ -113,6 +120,8 @@ export default function AssistantPanel() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedMode, setSelectedMode] = useState<AssistantMode>("chat");
     const [activePanel, setActivePanel] = useState<"sources" | "notes">("sources");
+    const [courses, setCourses] = useState<CourseOption[]>([]);
+    const [selectedCourse, setSelectedCourse] = useState("");
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,17 +156,29 @@ export default function AssistantPanel() {
             }
 
             try {
-                const [sourcesResponse, notesResponse] = await Promise.all([
+                const [sourcesResponse, notesResponse, coursesResponse] = await Promise.all([
                     axios.get("http://localhost:5000/api/auth/ai/sources", {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
                     axios.get("http://localhost:5000/api/notes", {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
+                    axios.get("http://localhost:5000/api/courses", {
+                        headers: { Authorization: `Bearer ${token}` },
+                    }),
                 ]);
 
                 setSources(sourcesResponse.data || []);
                 setNotes(notesResponse.data || []);
+
+                const uniqueCourses = Array.from(
+                    new Map(
+                        (coursesResponse.data || [])
+                            .filter((course: CourseOption) => course?.course_name)
+                            .map((course: CourseOption) => [course.course_name, course])
+                    ).values()
+                ) as CourseOption[];
+                setCourses(uniqueCourses);
             } catch (error) {
                 console.error("Notebook workspace load failed:", error);
                 setWorkspaceError("Sources could not be loaded.");
@@ -295,7 +316,9 @@ export default function AssistantPanel() {
 
         setSavingId(msgId);
         try {
-            const courseName = selectedSourceIds.length > 0 ? `Notebook ${selectedSourceIds.length}` : "General Notebook";
+            const courseName =
+                selectedCourse ||
+                (selectedSourceIds.length > 0 ? `Notebook ${selectedSourceIds.length}` : "General Notebook");
             const title = text.split("\n")[0].replace(/[#*]/g, "").trim() || "Notebook Output";
 
             await axios.post(
@@ -357,6 +380,7 @@ export default function AssistantPanel() {
                     prompt: promptText,
                     mode,
                     sourceIds: selectedSourceIds,
+                    courseName: selectedCourse || null,
                 }),
             });
 
@@ -545,72 +569,6 @@ export default function AssistantPanel() {
                             />
                         </div>
 
-<<<<<<< HEAD
-                {/* CHAT MESSAGES AREA */}
-                <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50 dark:bg-[#0d0d0f]">
-                    {messages.map((msg, index) => (
-                        <div
-                            key={msg.id || index} // Benzersiz key prop'u buraya eklendi
-                            className={`flex gap-3 max-w-[85%] ${msg.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
-                        >
-                            {/* Profil İkonu Alanı */}
-                            <div
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${msg.sender === "user" ? "bg-blue-600 text-white" : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-blue-600"}`}
-                            >
-                                {msg.sender === "user" ? <User size={16} /> : <Bot size={16} />}
-                            </div>
-
-                            {/* Mesaj İçerik Balonu */}
-                            <div className="flex flex-col gap-1.5 w-full">
-                                <div
-                                    className={`p-4 rounded-2xl text-sm leading-relaxed ${msg.sender === "user" ? "bg-blue-600 text-white rounded-tr-none shadow-md" : "bg-white dark:bg-[#111113] text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 rounded-tl-none shadow-sm"}`}
-                                >
-                                    {msg.sender === "ai" ? (
-                                        /* AI Yanıtları için Markdown ve LaTeX Render Alanı */
-                                        <div className="prose dark:prose-invert max-w-none text-sm text-inherit leading-relaxed">
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkMath]}
-                                                rehypePlugins={[rehypeKatex]}
-                                            >
-                                                {msg.text || "..."}
-                                            </ReactMarkdown>
-                                        </div>
-                                    ) : (
-                                        /* Kullanıcı Mesajları için Düz Metin Alanı */
-                                        <p className="whitespace-pre-line">{msg.text}</p>
-                                    )}
-
-                                    {/* Zaman Damgası */}
-                                    <span className={`text-[10px] block mt-1 text-right ${msg.sender === "user" ? "text-blue-200" : "text-slate-400"}`}>
-                                        {msg.timestamp?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-
-                                {/* SADECE YAPAY ZEKA MESAJLARI BİTTİĞİNDE BELİREN KAYDET BUTONU */}
-                                {msg.sender === "ai" && msg.text && msg.id !== "welcome" && (
-                                    <button
-                                        onClick={() => handleSaveArtifact(msg.id, msg.text, msg.templateType)}
-                                        disabled={savingId === msg.id}
-                                        className="self-start flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800/60 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200/50 dark:border-slate-700/50 transition-all active:scale-95 disabled:opacity-50 ml-1"
-                                    >
-                                        {savingId === msg.id ? (
-                                            <Loader2 size={12} className="animate-spin" />
-                                        ) : (
-                                            <Bookmark size={12} />
-                                        )}
-                                        {savingId === msg.id ? "Kaydediliyor..." : "Çıktıyı Koleksiyona Kaydet"}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* INITIAL LOADING STATE */}
-                    {isLoading && messages.length > 0 && !messages[messages.length - 1].text && (
-                        <div className="flex gap-3 max-w-[85%] mr-auto">
-                            <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
-                                <Bot size={16} />
-=======
                         <div className="flex gap-2">
                             <button
                                 onClick={selectAllSources}
@@ -763,6 +721,21 @@ export default function AssistantPanel() {
                             <div className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
                                 Local-first with Ollama fallback
                             </div>
+                            <label className="inline-flex items-center gap-2 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <BookOpen size={14} className="text-blue-600" />
+                                <select
+                                    value={selectedCourse}
+                                    onChange={(e) => setSelectedCourse(e.target.value)}
+                                    className="bg-transparent outline-none text-xs font-bold text-slate-700 dark:text-slate-200"
+                                >
+                                    <option value="">All courses</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.course_name}>
+                                            {course.course_name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
                         </div>
                     </div>
 
@@ -804,7 +777,6 @@ export default function AssistantPanel() {
                                         </button>
                                     )}
                                 </div>
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
                             </div>
                         ))}
 

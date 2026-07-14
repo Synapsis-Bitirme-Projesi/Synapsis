@@ -1,13 +1,10 @@
 const { GoogleGenAI } = require('@google/genai');
-<<<<<<< HEAD
-const pool = require('../config/db'); // Veritabanı bağlantısı
-=======
 const multer = require('multer');
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const path = require('path');
 const pool = require('../config/db');
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
+const { noteToAiText } = require('../utils/whiteboard');
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
 const upload = multer({
@@ -47,6 +44,20 @@ async function ensureNotebookTables() {
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_sources_user_id ON ai_sources(user_id);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_source_chunks_source_id ON ai_source_chunks(source_id);`);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_artifacts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            course_name VARCHAR(255),
+            artifact_type VARCHAR(50) NOT NULL DEFAULT 'summary',
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_artifacts_user_id ON ai_artifacts(user_id);`);
+
     notebookTablesReady = true;
 }
 
@@ -225,10 +236,11 @@ async function storeSourceContent({ userId, title, content, sourceType, mimeType
     }
 }
 
-async function loadNotebookChunks(userId, sourceIds = []) {
+async function loadNotebookChunks(userId, sourceIds = [], courseName = null) {
     const normalizedSourceIds = Array.isArray(sourceIds)
         ? sourceIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
         : [];
+    const selectedCourse = normalizeText(courseName);
 
     if (normalizedSourceIds.length > 0) {
         const filtered = await pool.query(
@@ -242,6 +254,41 @@ async function loadNotebookChunks(userId, sourceIds = []) {
 
         if (filtered.rows.length > 0) {
             return filtered.rows;
+        }
+    }
+
+    if (selectedCourse) {
+        const courseNotes = await pool.query(
+            `SELECT id, title, content, course, course_name, note_type, whiteboard_data
+             FROM notes
+             WHERE user_id = $1
+               AND (
+                 course ILIKE $2
+                 OR course_name ILIKE $2
+               )
+             ORDER BY updated_at DESC`,
+            [userId, selectedCourse]
+        );
+
+        const courseRows = [];
+        for (const note of courseNotes.rows) {
+            const plain = noteToAiText(note);
+            const noteChunks = chunkText(plain || note.title || '');
+            if (noteChunks.length === 0) continue;
+
+            noteChunks.forEach((chunk, index) => {
+                courseRows.push({
+                    source_id: `note-${note.id}`,
+                    source_title: `${note.title} (${selectedCourse})`,
+                    source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'course-note',
+                    chunk_index: index,
+                    chunk_text: chunk,
+                });
+            });
+        }
+
+        if (courseRows.length > 0) {
+            return courseRows;
         }
     }
 
@@ -259,7 +306,7 @@ async function loadNotebookChunks(userId, sourceIds = []) {
     }
 
     const notes = await pool.query(
-        `SELECT id, title, content
+        `SELECT id, title, content, note_type, whiteboard_data
          FROM notes
          WHERE user_id = $1
          ORDER BY updated_at DESC`,
@@ -268,14 +315,15 @@ async function loadNotebookChunks(userId, sourceIds = []) {
 
     const fallbackRows = [];
     for (const note of notes.rows) {
-        const noteChunks = chunkText(note.content || note.title || '');
+        const plain = noteToAiText(note);
+        const noteChunks = chunkText(plain || note.title || '');
         if (noteChunks.length === 0) continue;
 
         noteChunks.forEach((chunk, index) => {
             fallbackRows.push({
                 source_id: `note-${note.id}`,
                 source_title: note.title,
-                source_type: 'note',
+                source_type: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'note',
                 chunk_index: index,
                 chunk_text: chunk,
             });
@@ -469,10 +517,13 @@ async function importNotesAsSources(req, res) {
 
         const notesQuery = noteIds.length > 0
             ? await pool.query(
-                'SELECT id, title, content FROM notes WHERE user_id = $1 AND id = ANY($2::int[])',
+                'SELECT id, title, content, note_type, whiteboard_data FROM notes WHERE user_id = $1 AND id = ANY($2::int[])',
                 [userId, noteIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))]
             )
-            : await pool.query('SELECT id, title, content FROM notes WHERE user_id = $1 ORDER BY updated_at DESC', [userId]);
+            : await pool.query(
+                'SELECT id, title, content, note_type, whiteboard_data FROM notes WHERE user_id = $1 ORDER BY updated_at DESC',
+                [userId]
+            );
 
         const imported = [];
 
@@ -480,8 +531,8 @@ async function importNotesAsSources(req, res) {
             const result = await storeSourceContent({
                 userId,
                 title: note.title,
-                content: note.content || '',
-                sourceType: 'note',
+                content: noteToAiText(note) || note.content || '',
+                sourceType: note.note_type === 'whiteboard' ? 'whiteboard-note' : 'note',
                 mimeType: 'text/plain',
                 originNoteId: note.id,
             });
@@ -556,69 +607,11 @@ async function streamAIResponse(req, res) {
     res.setHeader('Connection', 'keep-alive');
 
     try {
-<<<<<<< HEAD
-        const { prompt, courseName } = req.body;
-
-        // KRİTİK GÜVENCE: protect middleware'inden id veya userId olarak gelse de doğru eşleşsin
-        const userId = req.user?.id || req.user?.userId;
-
-        if (!userId) {
-            res.write(`data: ${JSON.stringify({ error: "Kullanıcı oturumu doğrulanamadı." })}\n\n`);
-            res.end();
-            return;
-        }
-=======
         await ensureNotebookTables();
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
 
         const userId = getUserId(req);
-        const { prompt, sourceIds = [], mode = 'chat' } = req.body;
+        const { prompt, sourceIds = [], mode = 'chat', courseName = null } = req.body;
 
-<<<<<<< HEAD
-        // Bağlam (Context) Hazırlığı: Eğer ders seçildiyse kullanıcının o derse ait notlarını çekiyoruz
-        if (courseName && courseName !== "Select Course") {
-            const notesQuery = await pool.query(
-                'SELECT title, content FROM notes WHERE user_id = $1 AND (course = $2 OR tags @> ARRAY[$2]::varchar[])',
-                [userId, courseName]
-            );
-
-            if (notesQuery.rows.length > 0) {
-                contextText = `Kullanıcının ${courseName} dersi için aldığı gerçek ders notları aşağıdadır. Üreteceğin yanıtlarda ve sorulan sorularda öncelikle BU NOTLARI referans almalısın:\n`;
-                notesQuery.rows.forEach(note => {
-                    // HTML tag'lerini temizlemek istersen regex kullanabilirsin ancak Gemini HTML içeriği de başarıyla okur
-                    contextText += `--- Not Başlığı: ${note.title} ---\nİçerik: ${note.content}\n\n`;
-                });
-            }
-        }
-
-        // Sistem Promptu şablonu
-        const systemInstruction = `Sen Synapsis adında, üniversite öğrencilerine yardımcı olan akıllı bir akademik asistansın.
-Kullanıcının adı Tolga. Yanıtlarını markdown formatında, anlaşılır ve akademik başarıyı odaklayan bir dilde ver.
-Matematiksel ve fiziksel formülleri satır içinde veya blok halinde gösterirken kesinlikle standart LaTeX formatında (örneğin \\frac{a}{b} veya \\vec{v} gibi) yazmalısın.
-Sana sağlanan ders notları bağlamına (Context) sıkı sıkıya sadık kalmaya çalış. Eğer bağlam yetersizse genel akademik bilgilerle destekle.
-
-${contextText}`;
-
-        // Gemini 2.5 Flash modelini streaming moduyla çağırıyoruz
-        const responseStream = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                systemInstruction: systemInstruction,
-                temperature: 0.7,
-            }
-        });
-
-        // Gelen parçaları (chunks) anında frontend'e basıyoruz
-        for await (const chunk of responseStream) {
-            const text = chunk.text;
-            if (text) {
-                res.write(`data: ${text}\n\n`);
-            }
-        }
-
-        res.write('data: [DONE]\n\n');
-=======
         if (!userId) {
             res.write(`data: ${JSON.stringify({ error: 'Yetki bilgisi eksik.' })}\n\n`);
             res.end();
@@ -631,11 +624,12 @@ ${contextText}`;
             return;
         }
 
-        const corpus = await loadNotebookChunks(userId, sourceIds);
+        const corpus = await loadNotebookChunks(userId, sourceIds, courseName);
         const relevantChunks = selectRelevantChunks(prompt, corpus);
         const contextBlock = buildContextBlock(relevantChunks);
         const systemInstruction = buildSystemInstruction(mode);
-        const userPrompt = `User question:\n${prompt}\n\nSource excerpts:\n${contextBlock}`;
+        const courseHint = courseName ? `\nFocus on the course: ${courseName}.` : '';
+        const userPrompt = `User question:\n${prompt}${courseHint}\n\nSource excerpts:\n${contextBlock}`;
 
         try {
             if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
@@ -657,33 +651,24 @@ ${contextText}`;
             }
         }
 
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
         res.end();
     } catch (error) {
         console.error('AI Streaming Hatası:', error.message);
         res.write(`data: ${JSON.stringify({ error: 'Yapay zeka yanıtı üretilirken bir hata oluştu.' })}\n\n`);
         res.end();
     }
-<<<<<<< HEAD
-};
-
-// Yeni bir yapay zeka çıktısını kaydetme
-const saveArtifact = async (req, res) => {
-    try {
-        const { courseName, artifactType, title, content } = req.body;
-        const userId = req.user?.id || req.user?.userId;
-=======
 }
 
 const saveArtifact = async (req, res) => {
     try {
+        await ensureNotebookTables();
+
         const { courseName, artifactType, title, content } = req.body;
         const userId = getUserId(req);
 
         if (!userId) {
             return res.status(401).json({ error: 'Yetki bilgisi eksik.' });
         }
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
 
         if (!courseName || !artifactType || !title || !content) {
             return res.status(400).json({ error: 'Eksik parametre gönderildi.' });
@@ -703,15 +688,13 @@ const saveArtifact = async (req, res) => {
 
 const getArtifacts = async (req, res) => {
     try {
-<<<<<<< HEAD
-        const userId = req.user?.id || req.user?.userId;
-=======
+        await ensureNotebookTables();
+
         const userId = getUserId(req);
         if (!userId) {
             return res.status(401).json({ error: 'Yetki bilgisi eksik.' });
         }
 
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
         const artifacts = await pool.query(
             'SELECT * FROM ai_artifacts WHERE user_id = $1 ORDER BY created_at DESC',
             [userId]
@@ -733,10 +716,5 @@ module.exports = {
     deleteSource,
     streamAIResponse,
     saveArtifact,
-<<<<<<< HEAD
-    getArtifacts
-};
-=======
     getArtifacts,
 };
->>>>>>> 59485e0d644568ccf1d88e3efe95467672408def
