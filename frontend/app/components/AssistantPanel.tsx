@@ -2,6 +2,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import {
     ArrowRight,
     BookOpen,
@@ -23,6 +27,421 @@ import {
     Upload,
     User,
 } from "lucide-react";
+
+function cleanStudyText(value: string) {
+    return String(value || "")
+        .replace(/\*\*/g, "")
+        .replace(/^#+\s*/gm, "")
+        .replace(/^\s*[-*•]\s+/gm, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
+
+type PracticeItem = {
+    id: string;
+    question: string;
+    answer: string;
+};
+
+type FlashcardItem = {
+    id: string;
+    front: string;
+    back: string;
+};
+
+function parsePracticeItems(content: string): PracticeItem[] {
+    const text = String(content || "").trim();
+    if (!text) return [];
+
+    const items: PracticeItem[] = [];
+
+    // Preferred structured format:
+    // ### Question 1 ... ### Answer 1 ...
+    const structured = [
+        ...text.matchAll(
+            /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?Question\s*(\d+)(?:\*\*)?\s*[:.\-]?\s*([\s\S]*?)(?=(?:\n\s*(?:#{1,6}\s*)?(?:\*\*)?Answer\s*\1)|$)/gi
+        ),
+    ];
+
+    for (const match of structured) {
+        const index = match[1];
+        const question = cleanStudyText(match[2] || "");
+        const answerMatch = text.match(
+            new RegExp(
+                `(?:^|\\n)\\s*(?:#{1,6}\\s*)?(?:\\*\\*)?Answer\\s*${index}(?:\\*\\*)?\\s*[:.\\-]?\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:#{1,6}\\s*)?(?:\\*\\*)?Question\\s*\\d+)|$)`,
+                "i"
+            )
+        );
+        const answer = cleanStudyText(answerMatch?.[1] || "");
+        if (question && answer) {
+            items.push({ id: `q-${index}`, question, answer });
+        }
+    }
+
+    if (items.length > 0) return items;
+
+    // Fallback: Q:/A: or Question:/Answer: pairs
+    const pairRegex =
+        /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?(?:Q(?:uestion)?)\s*\d*(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)(?:\n)\s*(?:#{1,6}\s*)?(?:\*\*)?(?:A(?:nswer)?)\s*\d*(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)(?=(?:\n\s*(?:#{1,6}\s*)?(?:\*\*)?(?:Q(?:uestion)?)\s*\d*)|$)/gi;
+
+    let pairMatch: RegExpExecArray | null;
+    let pairIndex = 1;
+    while ((pairMatch = pairRegex.exec(text)) !== null) {
+        const question = cleanStudyText(pairMatch[1] || "");
+        const answer = cleanStudyText(pairMatch[2] || "");
+        if (question && answer) {
+            items.push({ id: `pair-${pairIndex++}`, question, answer });
+        }
+    }
+
+    return items;
+}
+
+function parseFlashcardItems(content: string): FlashcardItem[] {
+    const text = String(content || "").trim();
+    if (!text) return [];
+
+    const items: FlashcardItem[] = [];
+
+    // Preferred:
+    // ### Card 1
+    // Front: ...
+    // Back: ...
+    const cardBlocks = [
+        ...text.matchAll(
+            /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?Card\s*(\d+)(?:\*\*)?\s*[:.\-]?\s*([\s\S]*?)(?=(?:\n\s*(?:#{1,6}\s*)?(?:\*\*)?Card\s*\d+)|$)/gi
+        ),
+    ];
+
+    for (const match of cardBlocks) {
+        const block = match[2] || "";
+        const frontMatch = block.match(/(?:^|\n)\s*(?:\*\*)?Front(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)(?=(?:\n\s*(?:\*\*)?Back(?:\*\*)?\s*[:.\-])|$)/i);
+        const backMatch = block.match(/(?:^|\n)\s*(?:\*\*)?Back(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)$/i);
+        const front = cleanStudyText(frontMatch?.[1] || "");
+        const back = cleanStudyText(backMatch?.[1] || "");
+        if (front && back) {
+            items.push({ id: `card-${match[1]}`, front, back });
+        }
+    }
+
+    if (items.length > 0) return items;
+
+    // Fallback: Front:/Back: pairs without Card headings
+    const pairRegex =
+        /(?:^|\n)\s*(?:\*\*)?Front(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)(?:\n)\s*(?:\*\*)?Back(?:\*\*)?\s*[:.\-]\s*([\s\S]*?)(?=(?:\n\s*(?:\*\*)?Front(?:\*\*)?\s*[:.\-])|$)/gi;
+
+    let pairMatch: RegExpExecArray | null;
+    let pairIndex = 1;
+    while ((pairMatch = pairRegex.exec(text)) !== null) {
+        const front = cleanStudyText(pairMatch[1] || "");
+        const back = cleanStudyText(pairMatch[2] || "");
+        if (front && back) {
+            items.push({ id: `fb-${pairIndex++}`, front, back });
+        }
+    }
+
+    if (items.length > 0) return items;
+
+    // Fallback: "term — definition" / "term: definition" lines
+    const lines = text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !/^#{1,6}\s|sources used|flashcard/i.test(line));
+
+    lines.forEach((line, index) => {
+        const split = line.split(/\s+[—–-]\s+|:\s+/);
+        if (split.length >= 2) {
+            const front = cleanStudyText(split[0]);
+            const back = cleanStudyText(split.slice(1).join(": "));
+            if (front && back && front.length < 180) {
+                items.push({ id: `line-${index + 1}`, front, back });
+            }
+        }
+    });
+
+    return items;
+}
+
+function AssistantMarkdown({
+    content,
+    isUser = false,
+}: {
+    content: string;
+    isUser?: boolean;
+}) {
+    if (!content) return <p>...</p>;
+
+    if (isUser) {
+        return <p className="whitespace-pre-wrap">{content}</p>;
+    }
+
+    return (
+        <div className="assistant-markdown max-w-none">
+            <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                    h1: ({ children }) => (
+                        <h1 className="mb-3 mt-1 text-lg font-black text-slate-900 dark:text-white">{children}</h1>
+                    ),
+                    h2: ({ children }) => (
+                        <h2 className="mb-2 mt-4 text-base font-black text-slate-900 dark:text-white">{children}</h2>
+                    ),
+                    h3: ({ children }) => (
+                        <h3 className="mb-2 mt-3 text-sm font-black uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                            {children}
+                        </h3>
+                    ),
+                    p: ({ children }) => (
+                        <p className="my-2 leading-relaxed text-slate-700 dark:text-slate-200">{children}</p>
+                    ),
+                    ul: ({ children }) => (
+                        <ul className="my-2 list-disc space-y-1 pl-5 text-slate-700 dark:text-slate-200">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                        <ol className="my-2 list-decimal space-y-1 pl-5 text-slate-700 dark:text-slate-200">{children}</ol>
+                    ),
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    strong: ({ children }) => (
+                        <strong className="font-bold text-slate-900 dark:text-white">{children}</strong>
+                    ),
+                    em: ({ children }) => <em className="italic text-slate-600 dark:text-slate-300">{children}</em>,
+                    code: ({ children }) => (
+                        <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[12px] font-semibold text-blue-700 dark:bg-slate-800 dark:text-blue-300">
+                            {children}
+                        </code>
+                    ),
+                    pre: ({ children }) => (
+                        <pre className="my-3 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-950 p-3 text-[12px] text-slate-100 dark:border-slate-700">
+                            {children}
+                        </pre>
+                    ),
+                    a: ({ href, children }) => (
+                        <a
+                            href={href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-700 dark:text-blue-400"
+                        >
+                            {children}
+                        </a>
+                    ),
+                    blockquote: ({ children }) => (
+                        <blockquote className="my-3 border-l-4 border-blue-400 bg-blue-50/70 px-3 py-2 text-slate-600 dark:border-blue-500 dark:bg-blue-950/30 dark:text-slate-300">
+                            {children}
+                        </blockquote>
+                    ),
+                    hr: () => <hr className="my-4 border-slate-200 dark:border-slate-700" />,
+                }}
+            >
+                {content}
+            </ReactMarkdown>
+        </div>
+    );
+}
+
+function PracticeQuizView({ content }: { content: string }) {
+    const items = useMemo(() => parsePracticeItems(content), [content]);
+    const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        setRevealed({});
+    }, [content]);
+
+    if (items.length === 0) {
+        return <AssistantMarkdown content={content} />;
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-blue-500">Practice set</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {items.length} question{items.length > 1 ? "s" : ""} · answers hidden
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => {
+                        const allOpen = items.every((item) => revealed[item.id]);
+                        if (allOpen) {
+                            setRevealed({});
+                            return;
+                        }
+                        const next: Record<string, boolean> = {};
+                        items.forEach((item) => {
+                            next[item.id] = true;
+                        });
+                        setRevealed(next);
+                    }}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                >
+                    {items.every((item) => revealed[item.id]) ? "Hide all" : "Reveal all"}
+                </button>
+            </div>
+
+            {items.map((item, index) => {
+                const isOpen = Boolean(revealed[item.id]);
+                return (
+                    <div
+                        key={item.id}
+                        className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:to-slate-950"
+                    >
+                        <div className="mb-2 flex items-center gap-2">
+                            <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 text-[11px] font-black text-white">
+                                Q{index + 1}
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                                Practice question
+                            </span>
+                        </div>
+                        <p className="text-sm font-semibold leading-relaxed text-slate-800 dark:text-slate-100">
+                            {item.question}
+                        </p>
+
+                        <div className="mt-3">
+                            {!isOpen ? (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setRevealed((prev) => ({
+                                            ...prev,
+                                            [item.id]: true,
+                                        }))
+                                    }
+                                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition hover:bg-blue-700 active:scale-[0.98]"
+                                >
+                                    <HelpCircle size={14} />
+                                    Answer
+                                </button>
+                            ) : (
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                                    <div className="mb-1 flex items-center justify-between gap-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+                                            Answer
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setRevealed((prev) => ({
+                                                    ...prev,
+                                                    [item.id]: false,
+                                                }))
+                                            }
+                                            className="text-[10px] font-bold uppercase tracking-wide text-emerald-700/80 hover:text-emerald-800 dark:text-emerald-300"
+                                        >
+                                            Hide
+                                        </button>
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-emerald-950 dark:text-emerald-50 whitespace-pre-wrap">
+                                        {item.answer}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function FlashcardsView({ content }: { content: string }) {
+    const items = useMemo(() => parseFlashcardItems(content), [content]);
+    const [flipped, setFlipped] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        setFlipped({});
+    }, [content]);
+
+    if (items.length === 0) {
+        return <AssistantMarkdown content={content} />;
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-500">Flashcards</p>
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                        {items.length} card{items.length > 1 ? "s" : ""} · tap to flip
+                    </p>
+                </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+                {items.map((item, index) => {
+                    const isFlipped = Boolean(flipped[item.id]);
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() =>
+                                setFlipped((prev) => ({
+                                    ...prev,
+                                    [item.id]: !prev[item.id],
+                                }))
+                            }
+                            className={`group relative min-h-[150px] rounded-3xl border p-4 text-left shadow-sm transition-all active:scale-[0.99] ${isFlipped
+                                    ? "border-violet-300 bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-violet-500/20"
+                                    : "border-slate-200 bg-white hover:border-violet-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+                                }`}
+                        >
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isFlipped
+                                            ? "bg-white/15 text-white"
+                                            : "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"
+                                        }`}
+                                >
+                                    {isFlipped ? "Back" : "Front"} · {index + 1}
+                                </span>
+                                <span
+                                    className={`text-[10px] font-bold uppercase tracking-wide ${isFlipped ? "text-white/80" : "text-slate-400"
+                                        }`}
+                                >
+                                    Tap to flip
+                                </span>
+                            </div>
+                            <p
+                                className={`text-sm font-semibold leading-relaxed whitespace-pre-wrap ${isFlipped ? "text-white" : "text-slate-800 dark:text-slate-100"
+                                    }`}
+                            >
+                                {isFlipped ? item.back : item.front}
+                            </p>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function AssistantMessageBody({
+    content,
+    mode,
+    isUser = false,
+}: {
+    content: string;
+    mode?: AssistantMode;
+    isUser?: boolean;
+}) {
+    if (isUser) {
+        return <AssistantMarkdown content={content} isUser />;
+    }
+
+    if (mode === "questions") {
+        return <PracticeQuizView content={content} />;
+    }
+
+    if (mode === "cards") {
+        return <FlashcardsView content={content} />;
+    }
+
+    return <AssistantMarkdown content={content} />;
+}
 
 interface NotebookSource {
     id: number;
@@ -142,9 +561,8 @@ function AestheticSelect({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
-                className={`group flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 text-left shadow-sm outline-none transition-all hover:border-blue-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-slate-700/80 dark:bg-slate-900/90 dark:hover:border-blue-500/40 ${
-                    open ? "border-blue-400 ring-2 ring-blue-500/25 dark:border-blue-500/50" : ""
-                } ${buttonClassName}`}
+                className={`group flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 text-left shadow-sm outline-none transition-all hover:border-blue-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:border-slate-700/80 dark:bg-slate-900/90 dark:hover:border-blue-500/40 ${open ? "border-blue-400 ring-2 ring-blue-500/25 dark:border-blue-500/50" : ""
+                    } ${buttonClassName}`}
             >
                 <span className="flex min-w-0 items-center gap-2">
                     {icon && (
@@ -156,18 +574,16 @@ function AestheticSelect({
                 </span>
                 <ChevronDown
                     size={14}
-                    className={`shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-blue-500 ${
-                        open ? "rotate-180 text-blue-500" : ""
-                    }`}
+                    className={`shrink-0 text-slate-400 transition-transform duration-200 group-hover:text-blue-500 ${open ? "rotate-180 text-blue-500" : ""
+                        }`}
                 />
             </button>
 
             {open && (
                 <div
                     role="listbox"
-                    className={`absolute z-50 mt-2 min-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-700/80 dark:bg-[#121216]/95 dark:shadow-black/40 ${
-                        menuAlign === "right" ? "right-0" : "left-0"
-                    }`}
+                    className={`absolute z-50 mt-2 min-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-1.5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-slate-700/80 dark:bg-[#121216]/95 dark:shadow-black/40 ${menuAlign === "right" ? "right-0" : "left-0"
+                        }`}
                 >
                     <div className="max-h-64 space-y-0.5 overflow-y-auto">
                         {options.map((option) => {
@@ -182,18 +598,16 @@ function AestheticSelect({
                                         onChange(option.value);
                                         setOpen(false);
                                     }}
-                                    className={`flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${
-                                        isActive
-                                            ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
-                                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
-                                    }`}
+                                    className={`flex w-full items-start gap-2 rounded-xl px-3 py-2.5 text-left transition-colors ${isActive
+                                        ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
+                                        }`}
                                 >
                                     <span
-                                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                                            isActive
-                                                ? "border-white/40 bg-white/15 text-white"
-                                                : "border-slate-300 text-transparent dark:border-slate-600"
-                                        }`}
+                                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isActive
+                                            ? "border-white/40 bg-white/15 text-white"
+                                            : "border-slate-300 text-transparent dark:border-slate-600"
+                                            }`}
                                     >
                                         <Check size={10} strokeWidth={3} />
                                     </span>
@@ -203,11 +617,10 @@ function AestheticSelect({
                                         </span>
                                         {option.description && (
                                             <span
-                                                className={`mt-0.5 block text-[10px] leading-snug ${
-                                                    isActive
-                                                        ? "text-blue-100"
-                                                        : "text-slate-400 dark:text-slate-500"
-                                                }`}
+                                                className={`mt-0.5 block text-[10px] leading-snug ${isActive
+                                                    ? "text-blue-100"
+                                                    : "text-slate-400 dark:text-slate-500"
+                                                    }`}
                                             >
                                                 {option.description}
                                             </span>
@@ -249,37 +662,37 @@ const modeTemplates: Array<{
     icon: React.ReactNode;
     prompt: string;
 }> = [
-    {
-        mode: "summary",
-        label: "Summarize",
-        icon: <FileText size={16} />,
-        prompt: "Summarize the selected sources into concise study notes with key takeaways and important terms.",
-    },
-    {
-        mode: "questions",
-        label: "Practice",
-        icon: <HelpCircle size={16} />,
-        prompt: "Create exam-style practice questions and short answers based on the selected sources.",
-    },
-    {
-        mode: "cards",
-        label: "Flashcards",
-        icon: <Layers size={16} />,
-        prompt: "Create flashcards in a compact front / back format from the selected sources.",
-    },
-    {
-        mode: "explain",
-        label: "Explain",
-        icon: <Sparkles size={16} />,
-        prompt: "Explain the topic in simple student-friendly language using the selected sources.",
-    },
-    {
-        mode: "compare",
-        label: "Compare",
-        icon: <ArrowRight size={16} />,
-        prompt: "Compare the selected sources, highlight similarities, differences, and any contradictions.",
-    },
-];
+        {
+            mode: "summary",
+            label: "Summarize",
+            icon: <FileText size={16} />,
+            prompt: "Summarize the selected sources into concise study notes with key takeaways and important terms.",
+        },
+        {
+            mode: "questions",
+            label: "Practice",
+            icon: <HelpCircle size={16} />,
+            prompt: "Create exam-style practice questions and short answers based on the selected sources.",
+        },
+        {
+            mode: "cards",
+            label: "Flashcards",
+            icon: <Layers size={16} />,
+            prompt: "Create flashcards in a compact front / back format from the selected sources.",
+        },
+        {
+            mode: "explain",
+            label: "Explain",
+            icon: <Sparkles size={16} />,
+            prompt: "Explain the topic in simple student-friendly language using the selected sources.",
+        },
+        {
+            mode: "compare",
+            label: "Compare",
+            icon: <ArrowRight size={16} />,
+            prompt: "Compare the selected sources, highlight similarities, differences, and any contradictions.",
+        },
+    ];
 
 export default function AssistantPanel() {
     const [messages, setMessages] = useState<Message[]>([
@@ -645,6 +1058,17 @@ export default function AssistantPanel() {
                 }),
             });
 
+            if (!response.ok) {
+                let errorMessage = `Assistant request failed (${response.status}).`;
+                try {
+                    const errorBody = await response.json();
+                    errorMessage = errorBody?.error || errorBody?.message || errorMessage;
+                } catch {
+                    // keep default message when body is not JSON
+                }
+                throw new Error(errorMessage);
+            }
+
             if (!response.body) throw new Error("Response stream is unavailable.");
 
             const reader = response.body.getReader();
@@ -652,6 +1076,7 @@ export default function AssistantPanel() {
             let done = false;
             let buffer = "";
             let accumulatedText = "";
+            let streamError: string | null = null;
 
             setIsLoading(false);
 
@@ -659,87 +1084,87 @@ export default function AssistantPanel() {
                 const { value, done: readerDone } = await reader.read();
                 done = readerDone;
 
-                if (value) {
-                    buffer += decoder.decode(value, { stream: true });
-                    const events = buffer.split("\n\n");
-                    buffer = events.pop() || "";
+                if (!value) continue;
 
-                    for (const event of events) {
-                        const lines = event.split("\n");
-                        for (const line of lines) {
-                            if (!line.startsWith("data:")) continue;
+                buffer += decoder.decode(value, { stream: true });
+                const events = buffer.split("\n\n");
+                buffer = events.pop() || "";
 
-                            const rawContent = line.slice(5).trim();
-                            if (!rawContent) continue;
+                for (const event of events) {
+                    const lines = event.split("\n");
+                    for (const line of lines) {
+                        if (!line.startsWith("data:")) continue;
 
-                            if (rawContent === "[DONE]") {
-                                done = true;
-                                break;
-                            }
+                        const rawContent = line.slice(5).trim();
+                        if (!rawContent) continue;
 
-                            try {
-                                const parsed = JSON.parse(rawContent);
+                        if (rawContent === "[DONE]") {
+                            done = true;
+                            break;
+                        }
 
-                                if (parsed.error) {
-                                    accumulatedText = String(parsed.error);
-                                    setMessages((prev) =>
-                                        prev.map((msg) =>
-                                            msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
-                                        )
-                                    );
-                                    continue;
-                                }
+                        try {
+                            const parsed = JSON.parse(rawContent);
 
-                                if (parsed.meta) {
-                                    setMessages((prev) =>
-                                        prev.map((msg) =>
-                                            msg.id === aiMessageId
-                                                ? {
-                                                      ...msg,
-                                                      citations: Array.isArray(parsed.meta.citations)
-                                                          ? parsed.meta.citations
-                                                          : msg.citations,
-                                                      cached: Boolean(parsed.meta.cached),
-                                                      cacheKey: parsed.meta.cacheKey || msg.cacheKey || null,
-                                                      preferences: parsed.meta.preferences || msg.preferences,
-                                                  }
-                                                : msg
-                                        )
-                                    );
-                                }
-
-                                const delta = parsed.delta || parsed.text || "";
-                                if (!delta) continue;
-
-                                accumulatedText += delta;
+                            if (parsed.error) {
+                                streamError = String(parsed.error);
+                                accumulatedText = streamError;
                                 setMessages((prev) =>
                                     prev.map((msg) =>
                                         msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
                                     )
                                 );
-                            } catch {
-                                accumulatedText += rawContent;
+                                continue;
+                            }
+
+                            if (parsed.meta) {
                                 setMessages((prev) =>
                                     prev.map((msg) =>
-                                        msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                                        msg.id === aiMessageId
+                                            ? {
+                                                ...msg,
+                                                citations: Array.isArray(parsed.meta.citations)
+                                                    ? parsed.meta.citations
+                                                    : msg.citations,
+                                                cached: Boolean(parsed.meta.cached),
+                                                cacheKey: parsed.meta.cacheKey || msg.cacheKey || null,
+                                                preferences: parsed.meta.preferences || msg.preferences,
+                                            }
+                                            : msg
                                     )
                                 );
                             }
+
+                            const delta = parsed.delta || parsed.text || "";
+                            if (!delta) continue;
+
                             accumulatedText += delta;
                             setMessages((prev) =>
-                                prev.map((msg) => (msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg))
+                                prev.map((msg) =>
+                                    msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                                )
                             );
+                        } catch {
+                            // Ignore non-JSON keep-alive / partial frames
                         }
                     }
                 }
             }
+
+            if (!accumulatedText.trim()) {
+                throw new Error(streamError || "The assistant returned an empty response.");
+            }
         } catch (error) {
             console.error("Notebook streaming error:", error);
             setIsLoading(false);
+            const message =
+                error instanceof Error && error.message
+                    ? error.message
+                    : "The assistant could not respond right now.";
             setMessages((prev) =>
                 prev.map((msg) =>
                     msg.id === aiMessageId
-                        ? { ...msg, text: "The assistant could not respond right now." }
+                        ? { ...msg, text: message }
                         : msg
                 )
             );
@@ -1060,18 +1485,16 @@ export default function AssistantPanel() {
                             <button
                                 type="button"
                                 onClick={() => setBypassCache((current) => !current)}
-                                className={`flex h-full min-h-[4.25rem] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left shadow-sm transition-all ${
-                                    bypassCache
-                                        ? "border-amber-400/60 bg-amber-50 text-amber-900 shadow-amber-500/10 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
-                                        : "border-slate-200/80 bg-white/90 text-slate-700 hover:border-blue-300 dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-blue-500/40"
-                                }`}
+                                className={`flex h-full min-h-[4.25rem] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left shadow-sm transition-all ${bypassCache
+                                    ? "border-amber-400/60 bg-amber-50 text-amber-900 shadow-amber-500/10 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
+                                    : "border-slate-200/80 bg-white/90 text-slate-700 hover:border-blue-300 dark:border-slate-700/80 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:border-blue-500/40"
+                                    }`}
                             >
                                 <span
-                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                                        bypassCache
-                                            ? "bg-amber-500 text-white"
-                                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
-                                    }`}
+                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${bypassCache
+                                        ? "bg-amber-500 text-white"
+                                        : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                                        }`}
                                 >
                                     <RefreshCw size={15} className={bypassCache ? "animate-[spin_2.5s_linear_infinite]" : ""} />
                                 </span>
@@ -1106,8 +1529,8 @@ export default function AssistantPanel() {
                                 </div>
                                 <div className="flex flex-col gap-1.5 w-full">
                                     <div
-                                        className={`p-4 md:p-5 rounded-3xl text-sm leading-relaxed whitespace-pre-line ${msg.sender === 'user'
-                                            ? 'bg-blue-600 text-white rounded-tr-none shadow-md'
+                                        className={`p-4 md:p-5 rounded-3xl text-sm leading-relaxed ${msg.sender === 'user'
+                                            ? 'bg-blue-600 text-white rounded-tr-none shadow-md whitespace-pre-line'
                                             : 'bg-white dark:bg-[#111113] text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 rounded-tl-none shadow-sm'
                                             }`}
                                     >
@@ -1125,7 +1548,11 @@ export default function AssistantPanel() {
                                                 )}
                                             </div>
                                         )}
-                                        <p>{msg.text || '...'}</p>
+                                        <AssistantMessageBody
+                                            content={msg.text || "..."}
+                                            mode={msg.mode}
+                                            isUser={msg.sender === "user"}
+                                        />
                                         {msg.sender === 'ai' && msg.citations && msg.citations.length > 0 && (
                                             <div className="mt-3 border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
                                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">

@@ -1,13 +1,22 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+
 const { GoogleGenAI } = require('@google/genai');
 const crypto = require('crypto');
 const multer = require('multer');
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
-const path = require('path');
 const pool = require('../config/db');
 const { noteToAiText } = require('../utils/whiteboard');
 
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+const ollamaEnabled = Boolean(process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL || process.env.OLLAMA_ENABLED === 'true');
+
+if (!ai) {
+    console.warn('GEMINI_API_KEY is missing. Study Buddy will fall back to Ollama/offline excerpts.');
+} else {
+    console.log('Gemini client ready for Study Buddy.');
+}
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
@@ -94,6 +103,13 @@ async function ensureNotebookTables() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_study_cache_user_id ON ai_study_cache(user_id);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_study_cache_key ON ai_study_cache(cache_key);`);
 
+    // Remove previously cached offline/fallback answers so Gemini can regenerate them.
+    await pool.query(`
+        DELETE FROM ai_study_cache
+        WHERE content ILIKE '%could not reach a local LLM%'
+           OR content ILIKE '%Yapay zeka yanıtı üretilirken bir hata oluştu%'
+    `);
+
     notebookTablesReady = true;
 }
 
@@ -158,9 +174,32 @@ function buildModeInstruction(mode) {
         case 'summary':
             return 'Give a concise study summary, key takeaways, and important terms.';
         case 'questions':
-            return 'Create exam-style practice questions with short answers.';
+            return `Create 4-8 exam-style practice questions with short answers.
+Use EXACTLY this structure for every item so the UI can hide answers:
+
+### Question 1
+<question text>
+
+### Answer 1
+<short answer>
+
+### Question 2
+...
+
+Do not put the answer inside the question block. Keep answers concise.`;
         case 'cards':
-            return 'Create flashcards in a compact front / back format.';
+            return `Create 6-12 flashcards.
+Use EXACTLY this structure for every card so the UI can render flip cards:
+
+### Card 1
+Front: <term or prompt>
+Back: <definition or answer>
+
+### Card 2
+Front: ...
+Back: ...
+
+Keep each front/back to 1-3 short sentences. Do not use other formats.`;
         case 'compare':
             return 'Compare the sources, note agreements, differences, and any conflicts.';
         case 'explain':
@@ -556,6 +595,56 @@ function buildOfflineResponse(mode, prompt, chunks, citations = []) {
     return `${intro}\n\n${sourceList.join('\n\n')}\n\nQuestion: ${prompt}\n\n### Sources used\n${sourceList.map((line) => line.replace(/^-\s*/, '')).join('\n')}`;
 }
 
+function isDegradedResponse(text) {
+    const value = String(text || '');
+    return /could not reach a local LLM/i.test(value)
+        || /Yapay zeka yanıtı üretilirken bir hata oluştu/i.test(value);
+}
+
+async function generateModelStream(res, systemInstruction, userPrompt, {
+    mode,
+    prompt,
+    relevantChunks,
+    citations,
+}) {
+    const errors = [];
+
+    // Prefer Gemini whenever a key is configured.
+    if (ai) {
+        try {
+            const text = await streamGeminiResponse(res, systemInstruction, userPrompt);
+            if (text && text.trim()) {
+                return { text, provider: 'gemini', degraded: false };
+            }
+            errors.push('Gemini returned an empty response.');
+        } catch (error) {
+            errors.push(`Gemini: ${error.message}`);
+            console.error('Gemini stream failed:', error.message);
+        }
+    }
+
+    // Optional local Ollama fallback (only when explicitly enabled).
+    if (ollamaEnabled) {
+        try {
+            const text = await streamLocalOllamaResponse(res, systemInstruction, userPrompt);
+            if (text && text.trim()) {
+                return { text, provider: 'ollama', degraded: false };
+            }
+            errors.push('Ollama returned an empty response.');
+        } catch (error) {
+            errors.push(`Ollama: ${error.message}`);
+            console.error('Ollama stream failed:', error.message);
+        }
+    }
+
+    console.error('All AI providers failed, using offline excerpts:', errors.join(' | '));
+    const text = await streamTextToResponse(
+        res,
+        buildOfflineResponse(mode, prompt, relevantChunks, citations)
+    );
+    return { text, provider: 'offline', degraded: true };
+}
+
 async function streamTextToResponse(res, text) {
     const full = String(text || '');
     const parts = full
@@ -573,19 +662,33 @@ async function streamTextToResponse(res, text) {
 async function streamLocalOllamaResponse(res, systemInstruction, userPrompt) {
     const baseUrl = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
     const model = process.env.OLLAMA_MODEL || 'llama3.1';
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS || 8000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetch(`${baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model,
-            stream: true,
-            messages: [
-                { role: 'system', content: systemInstruction },
-                { role: 'user', content: userPrompt },
-            ],
-        }),
-    });
+    let response;
+    try {
+        response = await fetch(`${baseUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+                model,
+                stream: true,
+                messages: [
+                    { role: 'system', content: systemInstruction },
+                    { role: 'user', content: userPrompt },
+                ],
+            }),
+        });
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error(`Ollama timed out after ${timeoutMs}ms`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
 
     if (!response.ok || !response.body) {
         throw new Error(`Ollama request failed with status ${response.status}`);
@@ -873,7 +976,7 @@ async function streamAIResponse(req, res) {
 
         if (canUseCache) {
             const cached = await getCachedStudySet(userId, cacheKey);
-            if (cached?.content) {
+            if (cached?.content && !isDegradedResponse(cached.content)) {
                 res.write(`data: ${JSON.stringify({
                     meta: {
                         citations: cached.citations || citations,
@@ -885,6 +988,7 @@ async function streamAIResponse(req, res) {
                         cacheKey,
                         cached: true,
                         cacheHits: Number(cached.hit_count || 0) + 1,
+                        provider: 'cache',
                     },
                 })}\n\n`);
                 await streamTextToResponse(res, cached.content);
@@ -892,35 +996,40 @@ async function streamAIResponse(req, res) {
                 res.end();
                 return;
             }
-        }
 
-        let fullText = '';
-
-        try {
-            if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_MODEL) {
-                fullText = await streamLocalOllamaResponse(res, systemInstruction, userPrompt);
-            } else if (ai) {
-                fullText = await streamGeminiResponse(res, systemInstruction, userPrompt);
-            } else {
-                fullText = await streamTextToResponse(
-                    res,
-                    buildOfflineResponse(mode, prompt, relevantChunks, citations)
-                );
-            }
-        } catch (localError) {
-            console.error('Primary AI stream failed, falling back:', localError.message);
-
-            if (ai) {
-                fullText = await streamGeminiResponse(res, systemInstruction, userPrompt);
-            } else {
-                fullText = await streamTextToResponse(
-                    res,
-                    buildOfflineResponse(mode, prompt, relevantChunks, citations)
-                );
+            // Drop previously cached offline/fallback answers so Gemini can regenerate.
+            if (cached?.content && isDegradedResponse(cached.content)) {
+                try {
+                    await pool.query(
+                        'DELETE FROM ai_study_cache WHERE user_id = $1 AND cache_key = $2',
+                        [userId, cacheKey]
+                    );
+                } catch (cacheCleanupError) {
+                    console.error('Degraded cache cleanup failed:', cacheCleanupError.message);
+                }
             }
         }
 
-        if (canUseCache && fullText) {
+        const generation = await generateModelStream(res, systemInstruction, userPrompt, {
+            mode,
+            prompt,
+            relevantChunks,
+            citations,
+        });
+        const fullText = generation.text || '';
+
+        res.write(`data: ${JSON.stringify({
+            meta: {
+                citations,
+                preferences: prefs,
+                cacheKey,
+                cached: false,
+                provider: generation.provider,
+                degraded: Boolean(generation.degraded),
+            },
+        })}\n\n`);
+
+        if (canUseCache && fullText && !generation.degraded && !isDegradedResponse(fullText)) {
             try {
                 await saveStudyCache({
                     userId,
