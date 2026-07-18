@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import WeeklySchedule from '../components/WeeklySchedule';
 import AcademicCalendar from '../components/AcademicCalendar';
+import { API_BASE_URL } from '../lib/api';
 import { useSession } from "next-auth/react";
 import { Search, Bell, Sun, Moon, Calendar, Clock, AlertCircle } from 'lucide-react';
 
@@ -64,7 +65,7 @@ export default function DashboardPage() {
 
             // Courses → classes today count
             try {
-                const res = await axios.get('http://localhost:5000/api/courses', {
+                const res = await axios.get(`${API_BASE_URL}/api/courses`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const count = (res.data as any[]).filter(c => c.day_of_week === todayDow).length;
@@ -76,8 +77,8 @@ export default function DashboardPage() {
             // Exams + Tasks → unified Upcoming Deadlines
             try {
                 const [examsRes, tasksRes] = await Promise.all([
-                    axios.get('http://localhost:5000/api/exams', { headers: { Authorization: `Bearer ${token}` } }),
-                    axios.get('http://localhost:5000/api/auth/tasks', { headers: { Authorization: `Bearer ${token}` } }),
+                    axios.get(`${API_BASE_URL}/api/exams`, { headers: { Authorization: `Bearer ${token}` } }),
+                    axios.get(`${API_BASE_URL}/api/auth/tasks`, { headers: { Authorization: `Bearer ${token}` } }),
                 ]);
 
                 const examDeadlines: Deadline[] = (examsRes.data as any[])
@@ -129,7 +130,7 @@ export default function DashboardPage() {
         const syncWithDB = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get('http://localhost:5000/api/auth/settings/theme', {
+                const res = await axios.get(`${API_BASE_URL}/api/auth/settings/theme`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const dbTheme = res.data.theme === 'dark';
@@ -146,7 +147,7 @@ export default function DashboardPage() {
         setIsDarkMode(newMode);
         try {
             const token = localStorage.getItem('token');
-            await axios.post('http://localhost:5000/api/auth/settings/theme',
+            await axios.post(`${API_BASE_URL}/api/auth/settings/theme`,
                 { theme: newMode ? 'dark' : 'light' },
                 { headers: { Authorization: `Bearer ${token}` } }
             );

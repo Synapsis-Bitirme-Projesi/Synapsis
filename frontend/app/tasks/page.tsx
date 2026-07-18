@@ -11,6 +11,7 @@ import {
   Pencil,
   X,
 } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 interface Course {
   id: number;
@@ -29,9 +30,9 @@ interface Task {
   type?: string;
 }
 
-const TASK_API_URL = "http://localhost:5000/api/auth/tasks";
-const EXAM_API_URL = "http://localhost:5000/api/exams";
-const COURSES_API_URL = "http://localhost:5000/api/courses";
+const TASK_API_URL = `${API_BASE_URL}/api/auth/tasks`;
+const EXAM_API_URL = `${API_BASE_URL}/api/exams`;
+const COURSES_API_URL = `${API_BASE_URL}/api/courses`;
 
 const TYPE_OPTIONS = ["Task", "Exam", "Assignment", "Quiz", "Project", "Other"];
 

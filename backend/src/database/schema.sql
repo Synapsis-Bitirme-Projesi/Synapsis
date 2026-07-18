@@ -112,3 +112,10 @@ CREATE INDEX IF NOT EXISTS idx_ai_source_chunks_source_id ON ai_source_chunks(so
 CREATE INDEX IF NOT EXISTS idx_ai_artifacts_user_id ON ai_artifacts(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_study_cache_user_id ON ai_study_cache(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_study_cache_key ON ai_study_cache(cache_key);
+
+-- Every notes/courses/exams/tasks query filters by user_id; index it so
+-- lookups stay fast as a user's note count and calendar density grow.
+CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_courses_user_id ON courses(user_id);
+CREATE INDEX IF NOT EXISTS idx_exams_user_id ON exams(user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);

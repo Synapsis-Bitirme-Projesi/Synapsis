@@ -733,7 +733,7 @@ async function streamGeminiResponse(res, systemInstruction, userPrompt) {
     }
 
     const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-flash-latest',
         contents: userPrompt,
         config: {
             systemInstruction,

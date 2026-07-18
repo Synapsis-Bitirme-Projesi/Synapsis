@@ -74,4 +74,4 @@ Status: `todo` | `in-progress` | `done`
 | Bug fixing and cross-module code review            | All        | done        |
 | Responsive design (desktop/tablet/mobile)          | Teammate B | in-progress |
 | Usability testing (target SUS score ≥75)           | Teammate C | todo        |
-| Deployment setup + final documentation             | Teammate A | todo        |
+| Deployment setup + final documentation             | Teammate A | in-progress |

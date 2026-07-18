@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { buildScheduleGrid, formatTime, getCourseSpanHeight } from './scheduleGrid.mjs';
+import { API_BASE_URL } from '../lib/api';
 
 const WeeklySchedule = ({ isDarkMode }) => {
     const [courses, setCourses] = useState([]);
@@ -24,20 +25,27 @@ const WeeklySchedule = ({ isDarkMode }) => {
     });
 
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
 
     useEffect(() => {
         fetchCourses();
     }, []);
 
     const fetchCourses = async () => {
+        setIsLoading(true);
+        setLoadError(null);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/courses', {
+            const res = await axios.get(`${API_BASE_URL}/api/courses`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setCourses(res.data);
         } catch (err) {
             console.error(err);
+            setLoadError('Schedule could not be loaded.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -84,11 +92,11 @@ const WeeklySchedule = ({ isDarkMode }) => {
       try {
         const token = localStorage.getItem('token');
         if (editingCourse) {
-          await axios.put(`http://localhost:5000/api/courses/${editingCourse.id}`, formData, {
+          await axios.put(`${API_BASE_URL}/api/courses/${editingCourse.id}`, formData, {
             headers: { Authorization: `Bearer ${token}` }
           });
         } else {
-          await axios.post('http://localhost:5000/api/courses', formData, {
+          await axios.post(`${API_BASE_URL}/api/courses`, formData, {
             headers: { Authorization: `Bearer ${token}` }
           });
         }
@@ -115,7 +123,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
 
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`http://localhost:5000/api/courses/${course.id}`, {
+        await axios.delete(`${API_BASE_URL}/api/courses/${course.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCourses(prev => prev.filter(item => item.id !== course.id));
@@ -152,6 +160,19 @@ const WeeklySchedule = ({ isDarkMode }) => {
                     </button>
                 </div>
 
+                {loadError && (
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        <AlertCircle size={16} />
+                        {loadError}
+                    </div>
+                )}
+
+                {isLoading ? (
+                    <div className="flex items-center justify-center py-16 text-slate-400 dark:text-slate-500">
+                        <Loader2 size={18} className="animate-spin mr-2" />
+                        Loading schedule...
+                    </div>
+                ) : (
                 <div className="overflow-x-auto">
                     <div className="min-w-[800px]">
                         {/* GÜN BAŞLIKLARI */}
@@ -277,6 +298,7 @@ const WeeklySchedule = ({ isDarkMode }) => {
                         </div>
                     </div>
                 </div>
+                )}
             </div>
 
             {isModalOpen && (

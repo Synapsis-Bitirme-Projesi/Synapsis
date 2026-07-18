@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 const taskTypeColor = (type) => {
   switch (type) {
@@ -16,6 +17,8 @@ const taskTypeColor = (type) => {
 const AcademicCalendar = ({ isDarkMode, onExamClick = null, tasks = [] }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [exams, setExams] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
 
     // Takvim hesaplamaları
     const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
@@ -30,13 +33,20 @@ const AcademicCalendar = ({ isDarkMode, onExamClick = null, tasks = [] }) => {
     }, [currentDate]);
 
     const fetchExams = async () => {
+        setIsLoading(true);
+        setLoadError(null);
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/exams', {
+            const res = await axios.get(`${API_BASE_URL}/api/exams`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setExams(res.data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            setLoadError('Exams could not be loaded.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
@@ -61,6 +71,22 @@ const AcademicCalendar = ({ isDarkMode, onExamClick = null, tasks = [] }) => {
                     </div>
                 </div>
 
+                {loadError && (
+                    <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                        <AlertCircle size={16} />
+                        {loadError}
+                    </div>
+                )}
+
+                {isLoading && (
+                    <div className="flex items-center justify-center py-10 text-slate-400 dark:text-slate-500">
+                        <Loader2 size={18} className="animate-spin mr-2" />
+                        Loading calendar...
+                    </div>
+                )}
+
+                {!isLoading && (
+                <>
                 {/* Gün İsimleri */}
                 <div className="grid grid-cols-7 mb-4">
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -121,6 +147,8 @@ const AcademicCalendar = ({ isDarkMode, onExamClick = null, tasks = [] }) => {
                         );
                     })}
                 </div>
+                </>
+                )}
             </div>
         </div>
     );

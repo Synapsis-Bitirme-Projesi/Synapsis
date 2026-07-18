@@ -23,4 +23,29 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('Bağlantı başarılı! Veritabanı saati:', res.rows[0].now);
   }
 });
+
+// user_id is the filter column on every notes/courses/exams/tasks query;
+// without an index each lookup is a full table scan that gets slower as a
+// user's data grows (large note sets, dense calendars).
+const PERFORMANCE_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS idx_notes_user_id ON notes(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_courses_user_id ON courses(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_exams_user_id ON exams(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)',
+];
+
+async function ensurePerformanceIndexes() {
+  for (const sql of PERFORMANCE_INDEXES) {
+    try {
+      await pool.query(sql);
+    } catch (err) {
+      // Tables are created lazily by their own routes on first use; skip
+      // quietly if one doesn't exist yet instead of crashing startup.
+      console.error('Index ensure skipped:', err.message);
+    }
+  }
+}
+
+ensurePerformanceIndexes();
+
 module.exports = pool;

@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { API_BASE_URL } from "../../../lib/api";
 
 const handler = NextAuth({
     providers: [
@@ -18,7 +19,7 @@ const handler = NextAuth({
 
                     console.log("Backend'e istek atılıyor:", authData.email);
 
-                    const res = await fetch("http://127.0.0.1:5000/api/auth/login", {
+                    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { UserPlus, Mail, Lock, User as UserIcon } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 export default function RegisterPage() {
     const [formData, setFormData] = useState({ name: "", email: "", password: "" });
@@ -14,7 +15,7 @@ export default function RegisterPage() {
         setError("");
 
         try {
-            const res = await fetch("http://127.0.0.1:5000/api/auth/register", {
+            const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
