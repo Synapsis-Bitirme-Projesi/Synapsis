@@ -64,10 +64,10 @@ Goal: turn notes into course-specific learning assets.
 Goal: make the new features reliable before release.
 
 - [x] Add regression tests for calendar overlap rendering.
-- [ ] Add API tests for note-course linking and AI generation endpoints.
-- [ ] Verify empty states, loading states, and error states across all new surfaces.
-- [ ] Review performance for large note sets and dense calendars.
-- [ ] Confirm the new flows work on desktop and mobile breakpoints.
+- [x] Add API tests for note-course linking and AI generation endpoints. (`backend/tests/notes-course-linking.test.mjs`, `backend/tests/ai-generation.test.mjs` — run with `npm test` in `backend/`, requires the dev server running)
+- [x] Verify empty states, loading states, and error states across all new surfaces. (calendar + weekly schedule now show loading/error states instead of a silent blank grid; notes list distinguishes loading vs. genuinely empty and surfaces fetch errors with a retry action; AI Assistant panel's `alert()` popups replaced with an inline toast)
+- [x] Review performance for large note sets and dense calendars. (added missing `user_id` indexes on `notes`, `courses`, `exams`, `tasks` — every list query filters on this column and had none; see `backend/src/config/db.js` and `schema.sql`)
+- [ ] Confirm the new flows work on desktop and mobile breakpoints. (code-reviewed only, not visually verified on real devices/browser — fixed the fixed-width notes sidebar with a mobile drawer; still open: the weekly schedule stays horizontally-scrollable rather than a compact mobile view, and the whiteboard canvas has no touch/pinch gestures)
 
 ## Current Stack
 - Frontend: Next.js 14 / Tailwind CSS / NextAuth / Tiptap
@@ -76,9 +76,19 @@ Goal: make the new features reliable before release.
 - AI layer: integrated NotebookLM-style assistant (sources, course-aware context, Ollama/Gemini streaming, artifact storage)
 
 ## Near-Term Risks
-- Responsive polish and broader automated API coverage remain open.
-- Whiteboard sketch strokes are stored as point paths; richer drawing tools can be layered later.
+- Whiteboard sketch strokes are stored as point paths; richer drawing tools (and touch/pinch gestures) can be layered later.
 - Study-set cache keys depend on selected sources + preferences; force-regenerate is available when notes change outside fingerprint coverage.
+- Mobile breakpoints were reviewed in code only (no real device/browser pass) — see the open Phase 6 checklist item above.
+- Usability testing (target SUS ≥75, see TASKS.md) requires real users running through the app and cannot be completed by an automated pass — still open.
+
+## Deployment
+Not yet deployed. To ship the current stack (matches README's intended split):
+
+- **Frontend → Vercel**: point the project root at `frontend/`. Set `NEXT_PUBLIC_API_URL` to the deployed backend's URL, plus `NEXTAUTH_SECRET` and `NEXTAUTH_URL` (see `frontend/.env.example`).
+- **Backend → Render (or similar Node host)**: point the service root at `backend/`, build command `npm install`, start command `npm start`. Set `FRONTEND_URL` to the deployed frontend's URL (used for CORS), plus `DB_*`, `JWT_SECRET`, `NEXTAUTH_SECRET`, `GEMINI_API_KEY` (see `backend/.env.example`).
+- **Database**: already hosted on Azure PostgreSQL; only the connection env vars need to move with the backend deploy.
+- All API base URLs were previously hardcoded to `http://localhost:5000` across ~11 frontend files, which would have silently broken in any real deployment — this is now centralized in `frontend/app/lib/api.ts` and backend CORS now reads `FRONTEND_URL` instead of a hardcoded origin, so the app is deployable once the two services are provisioned.
+- Actually creating the Vercel/Render (or equivalent) projects and setting secrets requires account access this session doesn't have — that step is still manual.
 
 ## Branch
 main
@@ -88,12 +98,13 @@ main
 # Backend (terminal 1)
 cd backend
 npm install
-# Create backend/.env with: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT, JWT_SECRET
+cp .env.example .env   # then fill in real values (never commit this file)
 npm run dev   # http://localhost:5000
+npm test      # runs backend/tests/*.test.mjs against the running dev server
 
 # Frontend (terminal 2)
 cd frontend
 npm install
-# Create frontend/.env.local with: NEXTAUTH_SECRET=any-random-string, NEXTAUTH_URL=http://localhost:3000
+cp .env.example .env.local   # then fill in real values (never commit this file)
 npm run dev   # http://localhost:3000
 ```

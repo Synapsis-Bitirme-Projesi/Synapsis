@@ -20,6 +20,8 @@ import {
   X,
   LayoutGrid,
   Type,
+  Loader2,
+  Menu,
 } from 'lucide-react';
 import WhiteboardCanvas from '../components/WhiteboardCanvas';
 import {
@@ -33,6 +35,7 @@ import {
   ScheduleCourse,
   findActiveLecture,
 } from '../lib/activeLecture';
+import { API_BASE_URL } from '../lib/api';
 
 // Custom slash commands
 const slashCommands = [
@@ -166,6 +169,9 @@ export default function NotesPage() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [pendingCourse, setPendingCourse] = useState<string | null>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
+  const [notesLoadError, setNotesLoadError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Live-lecture suggestion after first successful save during class time
   const [showLiveLinkModal, setShowLiveLinkModal] = useState(false);
@@ -230,7 +236,7 @@ export default function NotesPage() {
 
       setSaveState('saving');
 
-      await axios.put(`http://localhost:5000/api/notes/${payload.noteId}`, {
+      await axios.put(`${API_BASE_URL}/api/notes/${payload.noteId}`, {
         title: payload.title,
         content,
         course: finalCourse,
@@ -315,15 +321,17 @@ export default function NotesPage() {
 
   useEffect(() => {
     const fetchNotes = async () => {
+      setIsLoadingNotes(true);
+      setNotesLoadError(null);
       try {
         const token = getToken();
         if (!token) return;
 
         const [notesRes, coursesRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/notes', {
+          axios.get(`${API_BASE_URL}/api/notes`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          axios.get('http://localhost:5000/api/courses', {
+          axios.get(`${API_BASE_URL}/api/courses`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
         ]);
@@ -356,6 +364,9 @@ export default function NotesPage() {
         }
       } catch (err) {
         console.error('Notes could not be loaded:', err);
+        setNotesLoadError('Notes could not be loaded. Check your connection and try again.');
+      } finally {
+        setIsLoadingNotes(false);
       }
     };
     fetchNotes();
@@ -406,6 +417,7 @@ export default function NotesPage() {
     currentCourseRef.current = note.course;
     currentNoteTypeRef.current = note.note_type;
     currentWhiteboardRef.current = note.whiteboard_data;
+    setIsSidebarOpen(false);
   };
 
   const createNewNote = async (noteType: NoteType = 'text') => {
@@ -415,7 +427,7 @@ export default function NotesPage() {
 
       const token = getToken();
       const whiteboard = createEmptyWhiteboard();
-      const res = await axios.post('http://localhost:5000/api/notes', {
+      const res = await axios.post(`${API_BASE_URL}/api/notes`, {
         title: noteType === 'whiteboard' ? 'New Whiteboard' : 'New Note',
         content: '',
         course: null,
@@ -445,7 +457,7 @@ export default function NotesPage() {
     if (!window.confirm('Are you sure you want to delete this note?')) return;
     try {
       const token = getToken();
-      await axios.delete(`http://localhost:5000/api/notes/${noteId}`, {
+      await axios.delete(`${API_BASE_URL}/api/notes/${noteId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const remaining = notes.filter(n => n.id !== noteId);
@@ -629,8 +641,29 @@ export default function NotesPage() {
 
   return (
     <div className="min-h-screen bg-transparent flex relative">
+      {/* Mobile sidebar toggle */}
+      <button
+        type="button"
+        onClick={() => setIsSidebarOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-30 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+      >
+        <Menu size={16} />
+        Notes
+      </button>
+
+      {/* Mobile backdrop */}
+      {isSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/40"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* LEFT PANEL */}
-      <aside className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-[#111113]">
+      <aside
+        className={`w-72 md:w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-[#111113] fixed md:static inset-y-0 left-0 z-40 transform transition-transform duration-200 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+      >
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 relative">
           <button
             onClick={() => setShowCreateMenu(v => !v)}
@@ -659,7 +692,22 @@ export default function NotesPage() {
           )}
         </div>
         <div className="flex-1 overflow-y-auto">
-          {notes.length === 0 ? (
+          {isLoadingNotes ? (
+            <div className="flex items-center justify-center gap-2 p-6 text-sm text-slate-400">
+              <Loader2 size={16} className="animate-spin" />
+              Loading notes...
+            </div>
+          ) : notesLoadError ? (
+            <div className="p-4">
+              <p className="text-center text-rose-500 text-sm mb-2">{notesLoadError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              >
+                Retry
+              </button>
+            </div>
+          ) : notes.length === 0 ? (
             <p className="text-center text-slate-400 text-sm p-6">No notes yet.</p>
           ) : (
             notes.map(note => (
@@ -703,7 +751,7 @@ export default function NotesPage() {
       </aside>
 
       {/* RIGHT PANEL */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#0d0d0f]">
+      <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#0d0d0f] pt-14 md:pt-0">
         {activeNoteId ? (
           <>
             <div className="px-6 pt-5 pb-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">

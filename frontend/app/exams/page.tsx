@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import AcademicCalendar from "../components/AcademicCalendar";
 import { X, Trash2 } from "lucide-react";
 import axios from "axios";
+import { API_BASE_URL } from "../lib/api";
 
 interface Exam {
   id: number;
@@ -35,7 +36,7 @@ export default function ExamsPage() {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const res = await axios.get("http://localhost:5000/api/auth/tasks", {
+        const res = await axios.get(`${API_BASE_URL}/api/auth/tasks`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setTasks((res.data as any[]).filter((t: any) => t.due_date));
@@ -67,7 +68,7 @@ export default function ExamsPage() {
     if (!selectedExam) return;
     try {
       const token = localStorage.getItem("token");
-      await axios.put(`http://localhost:5000/api/exams/${selectedExam.id}`, editForm, {
+      await axios.put(`${API_BASE_URL}/api/exams/${selectedExam.id}`, editForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSelectedExam(null);
@@ -82,7 +83,7 @@ export default function ExamsPage() {
     if (!window.confirm("Are you sure you want to delete this exam?")) return;
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`http://localhost:5000/api/exams/${selectedExam.id}`, {
+      await axios.delete(`${API_BASE_URL}/api/exams/${selectedExam.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setSelectedExam(null);

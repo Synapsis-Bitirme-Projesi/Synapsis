@@ -52,6 +52,7 @@ Thumbs.db
 /frontend/.next/
 /frontend/out/
 /frontend/.env*
+!/frontend/.env.example
 /frontend/.vercel
 # Next.js build/cache
 frontend/.next/

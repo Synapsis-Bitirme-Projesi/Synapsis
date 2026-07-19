@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, X, Trash2, Pencil } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
 
 const CoursesPage = () => {
   const [courses, setCourses] = useState([]);
@@ -28,7 +29,7 @@ const CoursesPage = () => {
   const fetchCourses = async () => {
     const token = localStorage.getItem('token');
     try {
-      const response = await axios.get('http://localhost:5000/api/courses', {
+      const response = await axios.get(`${API_BASE_URL}/api/courses`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCourses(response.data);
@@ -79,11 +80,11 @@ const CoursesPage = () => {
     const token = localStorage.getItem('token');
     try {
       if (editingCourse) {
-        await axios.put(`http://localhost:5000/api/courses/${editingCourse.id}`, formData, {
+        await axios.put(`${API_BASE_URL}/api/courses/${editingCourse.id}`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post('http://localhost:5000/api/courses', formData, {
+        await axios.post(`${API_BASE_URL}/api/courses`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
@@ -98,7 +99,7 @@ const CoursesPage = () => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/courses/${id}`, {
+      await axios.delete(`${API_BASE_URL}/api/courses/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCourses(prev => prev.filter(c => c.id !== id));

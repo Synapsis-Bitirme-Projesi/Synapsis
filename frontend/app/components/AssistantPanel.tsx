@@ -26,7 +26,9 @@ import {
     Trash2,
     Upload,
     User,
+    X,
 } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 function cleanStudyText(value: string) {
     return String(value || "")
@@ -726,10 +728,21 @@ export default function AssistantPanel() {
     const [outputDepth, setOutputDepth] = useState<OutputDepth>("standard");
     const [outputTone, setOutputTone] = useState<OutputTone>("neutral");
     const [bypassCache, setBypassCache] = useState(false);
+    const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const prefsHydratedRef = useRef(false);
+
+    const showToast = (type: "success" | "error", message: string) => {
+        setToast({ type, message });
+    };
+
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 4000);
+        return () => clearTimeout(timer);
+    }, [toast]);
 
     const getToken = () => {
         if (typeof window === "undefined") return null;
@@ -808,13 +821,13 @@ export default function AssistantPanel() {
 
             try {
                 const [sourcesResponse, notesResponse, coursesResponse] = await Promise.all([
-                    axios.get("http://localhost:5000/api/auth/ai/sources", {
+                    axios.get(`${API_BASE_URL}/api/auth/ai/sources`, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
-                    axios.get("http://localhost:5000/api/notes", {
+                    axios.get(`${API_BASE_URL}/api/notes`, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
-                    axios.get("http://localhost:5000/api/courses", {
+                    axios.get(`${API_BASE_URL}/api/courses`, {
                         headers: { Authorization: `Bearer ${token}` },
                     }),
                 ]);
@@ -846,10 +859,10 @@ export default function AssistantPanel() {
         if (!token) return;
 
         const [sourcesResponse, notesResponse] = await Promise.all([
-            axios.get("http://localhost:5000/api/auth/ai/sources", {
+            axios.get(`${API_BASE_URL}/api/auth/ai/sources`, {
                 headers: { Authorization: `Bearer ${token}` },
             }),
-            axios.get("http://localhost:5000/api/notes", {
+            axios.get(`${API_BASE_URL}/api/notes`, {
                 headers: { Authorization: `Bearer ${token}` },
             }),
         ]);
@@ -882,7 +895,7 @@ export default function AssistantPanel() {
         setIsCreatingTextSource(true);
         try {
             await axios.post(
-                "http://localhost:5000/api/auth/ai/sources",
+                `${API_BASE_URL}/api/auth/ai/sources`,
                 {
                     title: sourceTitle.trim() || "Pasted Study Notes",
                     content: sourceContent,
@@ -896,7 +909,7 @@ export default function AssistantPanel() {
             await refreshWorkspace();
         } catch (error) {
             console.error("Text source error:", error);
-            alert("Text source could not be added.");
+            showToast("error", "Text source could not be added.");
         } finally {
             setIsCreatingTextSource(false);
         }
@@ -911,14 +924,14 @@ export default function AssistantPanel() {
             const formData = new FormData();
             Array.from(files).forEach((file) => formData.append("files", file));
 
-            await axios.post("http://localhost:5000/api/auth/ai/sources/upload", formData, {
+            await axios.post(`${API_BASE_URL}/api/auth/ai/sources/upload`, formData, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (fileInputRef.current) fileInputRef.current.value = "";
             await refreshWorkspace();
         } catch (error) {
             console.error("Upload source error:", error);
-            alert("Files could not be uploaded.");
+            showToast("error", "Files could not be uploaded.");
         } finally {
             setIsUploading(false);
         }
@@ -931,7 +944,7 @@ export default function AssistantPanel() {
         setIsImportingNotes(true);
         try {
             await axios.post(
-                "http://localhost:5000/api/auth/ai/sources/import-notes",
+                `${API_BASE_URL}/api/auth/ai/sources/import-notes`,
                 { noteIds: noteIds || notes.map((note) => note.id) },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -939,7 +952,7 @@ export default function AssistantPanel() {
             setActivePanel("sources");
         } catch (error) {
             console.error("Import notes error:", error);
-            alert("Notes could not be imported.");
+            showToast("error", "Notes could not be imported.");
         } finally {
             setIsImportingNotes(false);
         }
@@ -950,14 +963,14 @@ export default function AssistantPanel() {
         if (!token) return;
 
         try {
-            await axios.delete(`http://localhost:5000/api/auth/ai/sources/${sourceId}`, {
+            await axios.delete(`${API_BASE_URL}/api/auth/ai/sources/${sourceId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setSelectedSourceIds((current) => current.filter((id) => id !== sourceId));
             await refreshWorkspace();
         } catch (error) {
             console.error("Delete source error:", error);
-            alert("Source could not be deleted.");
+            showToast("error", "Source could not be deleted.");
         }
     };
 
@@ -978,7 +991,7 @@ export default function AssistantPanel() {
             };
 
             await axios.post(
-                "http://localhost:5000/api/auth/ai/artifacts",
+                `${API_BASE_URL}/api/auth/ai/artifacts`,
                 {
                     courseName,
                     artifactType: msg.mode || "summary",
@@ -993,10 +1006,10 @@ export default function AssistantPanel() {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            alert("Saved to your collection.");
+            showToast("success", "Saved to your collection.");
         } catch (error) {
             console.error("Artifact save error:", error);
-            alert("Artifact could not be saved.");
+            showToast("error", "Artifact could not be saved.");
         } finally {
             setSavingId(null);
         }
@@ -1040,7 +1053,7 @@ export default function AssistantPanel() {
         ]);
 
         try {
-            const response = await fetch("http://localhost:5000/api/auth/ai/chat", {
+            const response = await fetch(`${API_BASE_URL}/api/auth/ai/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1186,6 +1199,23 @@ export default function AssistantPanel() {
 
     return (
         <div className="grid gap-8 xl:grid-cols-[380px_minmax(0,1fr)]">
+            {toast && (
+                <div
+                    role="alert"
+                    className={`fixed bottom-6 right-6 z-[100] flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-2xl transition-all ${toast.type === "success" ? "bg-emerald-600" : "bg-rose-600"
+                        }`}
+                >
+                    {toast.message}
+                    <button
+                        type="button"
+                        onClick={() => setToast(null)}
+                        className="ml-2 rounded-full p-0.5 hover:bg-white/20"
+                        aria-label="Dismiss"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
             <aside className="space-y-6 xl:sticky xl:top-8 self-start">
                 <section className="rounded-[32px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#111113] shadow-2xl overflow-hidden">
                     <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-br from-blue-50 via-white to-sky-50 dark:from-slate-900 dark:via-[#111113] dark:to-slate-950">

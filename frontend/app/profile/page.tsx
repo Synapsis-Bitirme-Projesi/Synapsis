@@ -2,6 +2,7 @@
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { User, Mail, Save, X, Edit3, Shield, Sparkles } from "lucide-react";
+import { API_BASE_URL } from "../lib/api";
 
 export default function ProfilePage() {
     const { data: session, status, update } = useSession();
@@ -31,7 +32,7 @@ export default function ProfilePage() {
         }
 
         try {
-            const res = await fetch("http://127.0.0.1:5000/api/auth/update-profile", {
+            const res = await fetch(`${API_BASE_URL}/api/auth/update-profile`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
