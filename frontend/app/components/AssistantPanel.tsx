@@ -59,11 +59,11 @@ function parsePracticeItems(content: string): PracticeItem[] {
 
     // Preferred structured format:
     // ### Question 1 ... ### Answer 1 ...
-    const structured = [
-        ...text.matchAll(
+    const structured = Array.from(
+        text.matchAll(
             /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?Question\s*(\d+)(?:\*\*)?\s*[:.\-]?\s*([\s\S]*?)(?=(?:\n\s*(?:#{1,6}\s*)?(?:\*\*)?Answer\s*\1)|$)/gi
-        ),
-    ];
+        )
+    );
 
     for (const match of structured) {
         const index = match[1];
@@ -109,11 +109,11 @@ function parseFlashcardItems(content: string): FlashcardItem[] {
     // ### Card 1
     // Front: ...
     // Back: ...
-    const cardBlocks = [
-        ...text.matchAll(
+    const cardBlocks = Array.from(
+        text.matchAll(
             /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?Card\s*(\d+)(?:\*\*)?\s*[:.\-]?\s*([\s\S]*?)(?=(?:\n\s*(?:#{1,6}\s*)?(?:\*\*)?Card\s*\d+)|$)/gi
-        ),
-    ];
+        )
+    );
 
     for (const match of cardBlocks) {
         const block = match[2] || "";
@@ -172,10 +172,12 @@ function AssistantMarkdown({
     content: string;
     isUser?: boolean;
 }) {
-    if (!content) return <p>...</p>;
+    const safeContent = String(content || '').trim();
+
+    if (!safeContent) return <p>...</p>;
 
     if (isUser) {
-        return <p className="whitespace-pre-wrap">{content}</p>;
+        return <p className="whitespace-pre-wrap">{safeContent}</p>;
     }
 
     return (
@@ -237,7 +239,7 @@ function AssistantMarkdown({
                     hr: () => <hr className="my-4 border-slate-200 dark:border-slate-700" />,
                 }}
             >
-                {content}
+                {safeContent}
             </ReactMarkdown>
         </div>
     );
@@ -387,15 +389,15 @@ function FlashcardsView({ content }: { content: string }) {
                                 }))
                             }
                             className={`group relative min-h-[150px] rounded-3xl border p-4 text-left shadow-sm transition-all active:scale-[0.99] ${isFlipped
-                                    ? "border-violet-300 bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-violet-500/20"
-                                    : "border-slate-200 bg-white hover:border-violet-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+                                ? "border-violet-300 bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-violet-500/20"
+                                : "border-slate-200 bg-white hover:border-violet-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
                                 }`}
                         >
                             <div className="mb-3 flex items-center justify-between gap-2">
                                 <span
                                     className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] ${isFlipped
-                                            ? "bg-white/15 text-white"
-                                            : "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"
+                                        ? "bg-white/15 text-white"
+                                        : "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"
                                         }`}
                                 >
                                     {isFlipped ? "Back" : "Front"} · {index + 1}

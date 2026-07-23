@@ -172,7 +172,7 @@ function scoreChunk(query, sourceTitle, chunkText) {
 function buildModeInstruction(mode) {
     switch (mode) {
         case 'summary':
-            return 'Give a concise study summary, key takeaways, and important terms.';
+            return 'Give a concise study summary, key takeaways, and important terms. Format the answer as clean markdown with short headings and bullet points.';
         case 'questions':
             return `Create 4-8 exam-style practice questions with short answers.
 Use EXACTLY this structure for every item so the UI can hide answers:
@@ -201,11 +201,11 @@ Back: ...
 
 Keep each front/back to 1-3 short sentences. Do not use other formats.`;
         case 'compare':
-            return 'Compare the sources, note agreements, differences, and any conflicts.';
+            return 'Compare the sources, note agreements, differences, and any conflicts. Present the comparison in clear markdown with short headings and bullets.';
         case 'explain':
-            return 'Explain the topic in simple student-friendly language using only the sources.';
+            return 'Explain the topic in simple student-friendly language using only the sources. Use clear markdown headings, bullets, and short paragraphs.';
         default:
-            return 'Answer the user clearly and helpfully using the provided sources.';
+            return 'Answer the user clearly and helpfully using the provided sources. Use markdown headings, bullets, bold text, and short paragraphs rather than raw plaintext.';
     }
 }
 
@@ -223,7 +223,7 @@ function normalizePreferences({ format, depth, tone, outputFormat, outputDepth, 
 
 function buildPreferenceInstruction(prefs) {
     const formatLine = {
-        markdown: 'Format the answer as clean markdown with short headings.',
+        markdown: 'Format the answer as clean markdown with short headings, bullets, and compact paragraphs.',
         bullets: 'Format the answer mostly as bullet points; keep prose minimal.',
         outline: 'Format the answer as a hierarchical outline (I / A / 1 style or nested bullets).',
         qa: 'Format the answer as Q&A pairs (Question then Answer).',

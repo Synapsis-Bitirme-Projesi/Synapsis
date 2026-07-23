@@ -3,13 +3,23 @@ const router = express.Router();
 
 // 1. Auth & Task Controller Fonksiyonları
 const {
-    register,
     login,
+    requestRegistrationCode,
+    confirmRegistrationCode,
     getMe,
     updateSettings,
     updateProfile,
     getTheme,
     updateTheme,
+    listCommunityPosts,
+    createCommunityPost,
+    listUsers,
+    listAvailableUsers,
+    listContactRequests,
+    sendContactRequest,
+    respondContactRequest,
+    listDirectMessages,
+    createDirectMessage,
     addTask,
     getTasks,
     deleteTask,
@@ -37,7 +47,8 @@ const {
 const { protect } = require('../middleware/authMiddleware');
 
 // --- Auth Rotaları ---
-router.post('/register', register);
+router.post('/register', requestRegistrationCode);
+router.post('/register/confirm', confirmRegistrationCode);
 router.post('/login', login);
 router.get('/me', protect, getMe);
 
@@ -48,6 +59,19 @@ router.put('/update-profile', protect, updateProfile);
 // --- Tema (Dark/Light) Rotaları ---
 router.get('/settings/theme', getTheme);
 router.post('/settings/theme', protect, updateTheme);
+
+// --- Topluluk Sohbeti Rotaları ---
+router.get('/community/posts', protect, listCommunityPosts);
+router.post('/community/posts', protect, createCommunityPost);
+
+// --- Kullanıcılar Arası Mesajlaşma Rotaları ---
+router.get('/users', protect, listUsers);
+router.get('/users/available', protect, listAvailableUsers);
+router.get('/users/requests', protect, listContactRequests);
+router.post('/users/requests', protect, sendContactRequest);
+router.post('/users/requests/:id/respond', protect, respondContactRequest);
+router.get('/direct/messages', protect, listDirectMessages);
+router.post('/direct/messages', protect, createDirectMessage);
 
 // --- Görev (Task) Rotaları ---
 router.post('/tasks', protect, addTask);

@@ -21,6 +21,16 @@ test.before(async () => {
     body: JSON.stringify({ email: testEmail, password: testPassword, full_name: 'Notes Link Test' }),
   });
 
+  const verification = await pool.query('SELECT code FROM registration_verifications WHERE email = $1', [testEmail]);
+  assert.equal(verification.rowCount, 1, 'verification record should exist after requesting registration code');
+  const code = verification.rows[0].code;
+
+  await fetch(`${BASE_URL}/api/auth/register/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: testEmail, code }),
+  });
+
   const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

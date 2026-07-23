@@ -11,7 +11,8 @@ import {
   Calendar as CalendarIcon,
   FileText,
   GraduationCap,
-  Sparkles
+  Sparkles,
+  Users
 } from "lucide-react";
 import AuthProvider from "./components/SessionProvider";
 import "./globals.css";
@@ -127,6 +128,18 @@ function LayoutContent({ children }: { children: ReactNode }) {
               icon={<Sparkles size={20} />}
               label="Study Buddy"
               active={pathname === "/assistant"}
+            />
+            <SidebarLink
+              href="/community"
+              icon={<Users size={20} />}
+              label="Community"
+              active={pathname === "/community"}
+            />
+            <SidebarLink
+              href="/messages"
+              icon={<Users size={20} />}
+              label="Messages"
+              active={pathname === "/messages"}
             />
           </nav>
 

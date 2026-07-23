@@ -2,17 +2,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { UserPlus, Mail, Lock, User as UserIcon } from "lucide-react";
+import { UserPlus, User as UserIcon, Mail, Lock, Key } from "lucide-react";
 import { API_BASE_URL } from "../lib/api";
 
 export default function RegisterPage() {
-    const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+    const [step, setStep] = useState<1 | 2>(1);
+    const [formData, setFormData] = useState({ name: "", email: "", password: "", code: "" });
     const [error, setError] = useState("");
+    const [info, setInfo] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const router = useRouter();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSendCode = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setInfo("");
+        setIsSubmitting(true);
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -25,14 +30,46 @@ export default function RegisterPage() {
                 }),
             });
 
+            const data = await res.json();
             if (res.ok) {
-                router.push("/login");
+                setInfo(data.message || "Doğrulama kodu gönderildi. E-postanızı kontrol edin.");
+                setStep(2);
             } else {
-                const data = await res.json();
-                setError(data.message || "Kayıt başarısız.");
+                setError(data.message || "Doğrulama kodu gönderilemedi.");
             }
         } catch (err) {
             setError("Sunucuya bağlanılamadı. Lütfen backend'in çalıştığından emin olun.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleConfirmCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+        setInfo("");
+        setIsSubmitting(true);
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/auth/register/confirm`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: formData.email,
+                    code: formData.code
+                }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                router.push("/login");
+            } else {
+                setError(data.message || "Doğrulama başarısız.");
+            }
+        } catch (err) {
+            setError("Sunucuya bağlanılamadı. Lütfen backend'in çalıştığından emin olun.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -54,57 +91,87 @@ export default function RegisterPage() {
                         {error}
                     </div>
                 )}
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Ad Soyad */}
-                    <div className="relative">
-                        <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="text"
-                            placeholder="Full Name"
-                            className={inputClass}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            required
-                        />
+                {info && (
+                    <div className="mb-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-2xl text-sm font-bold border border-emerald-100 dark:border-emerald-800">
+                        {info}
                     </div>
+                )}
 
-                    {/* E-posta */}
-                    <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="email"
-                            placeholder="E-posta"
-                            className={inputClass}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            required
-                        />
-                    </div>
+                <form onSubmit={step === 1 ? handleSendCode : handleConfirmCode} className="space-y-4">
+                    {step === 1 ? (
+                        <>
+                            <div className="relative">
+                                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input
+                                    type="text"
+                                    placeholder="Full Name"
+                                    value={formData.name}
+                                    className={inputClass}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    required
+                                />
+                            </div>
 
-                    {/* Şifre */}
-                    <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                        <input
-                            type="password"
-                            placeholder="Şifre"
-                            className={inputClass}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                        />
-                    </div>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input
+                                    type="email"
+                                    placeholder="E-posta"
+                                    value={formData.email}
+                                    className={inputClass}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div className="relative">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input
+                                    type="password"
+                                    placeholder="Şifre"
+                                    value={formData.password}
+                                    className={inputClass}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    required
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input
+                                    type="email"
+                                    placeholder="E-posta"
+                                    value={formData.email}
+                                    className={inputClass}
+                                    disabled
+                                />
+                            </div>
+                            <div className="relative">
+                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input
+                                    type="text"
+                                    placeholder="Doğrulama Kodu"
+                                    value={formData.code}
+                                    className={inputClass}
+                                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                    required
+                                />
+                            </div>
+                        </>
+                    )}
 
                     <button
                         type="submit"
-                        className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg shadow-blue-100 dark:shadow-blue-900/30 hover:bg-blue-700 hover:-translate-y-0.5 active:scale-95 transition-all mt-4"
+                        disabled={isSubmitting}
+                        className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl shadow-lg shadow-blue-100 dark:shadow-blue-900/30 hover:bg-blue-700 hover:-translate-y-0.5 active:scale-95 transition-all mt-4 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        Sign Up
+                        {step === 1 ? 'Kod Gönder' : 'Kodu Onayla'}
                     </button>
                 </form>
-
-                <p className="text-center mt-8 text-slate-500 dark:text-slate-400 font-bold text-sm">
-                    Already have an account?{" "}
-                    <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline">Sign In</Link>
-                </p>
             </div>
         </div>
     );
 }
+
