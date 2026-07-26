@@ -12,7 +12,11 @@ import {
   FileText,
   GraduationCap,
   Sparkles,
-  Users
+  Users,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import AuthProvider from "./components/SessionProvider";
 import "./globals.css";
@@ -40,6 +44,8 @@ function LayoutContent({ children }: { children: ReactNode }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const isAuthPage = pathname === "/" || pathname === "/login" || pathname === "/register";
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Sync the NextAuth JWT to localStorage so legacy pages can read it
   useEffect(() => {
@@ -77,95 +83,139 @@ function LayoutContent({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex w-full overflow-hidden bg-slate-50 dark:bg-[#0a0a0c]">
       {showSidebar && (
-        <aside className="w-72 bg-white dark:bg-[#0d0d0f] border-r border-slate-100 dark:border-slate-800 flex flex-col sticky top-0 h-screen z-50 shrink-0 transition-all duration-300">
+        <>
+          {/* Mobil açma düğmesi */}
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden fixed top-4 left-4 z-50 flex items-center justify-center h-11 w-11 rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-lg shadow-slate-900/10 transition-all hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-[#0d0d0f] dark:text-slate-200"
+            aria-label="Open sidebar"
+          >
+            <Menu size={20} />
+          </button>
 
-          {/* Logo Alanı */}
-          <div className="p-8 mb-4">
-            <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:rotate-12 transition-all duration-300">
-                <GraduationCap size={24} />
+          <aside className={`
+            fixed inset-y-0 left-0 z-50 w-72 max-w-full transform overflow-hidden bg-white shadow-2xl border-r border-slate-200 dark:border-slate-800 dark:bg-[#0d0d0f]
+            transition-transform duration-300 ease-out flex flex-col
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            md:static md:translate-x-0 md:w-72 md:h-screen md:sticky
+          `}>
+            <div className="flex items-center justify-between gap-2 p-5 border-b border-slate-100 dark:border-slate-800 md:px-8 md:py-6 bg-white dark:bg-[#0d0d0f]">
+              <Link href="/dashboard" className="flex items-center gap-3 group">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:rotate-12 transition-all duration-300">
+                  <GraduationCap size={24} />
+                </div>
+                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tighter italic transition-colors">
+                  Synapsis
+                </h1>
+              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                  className="hidden md:inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  aria-label="Collapse sidebar"
+                >
+                  {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                </button>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="md:hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  aria-label="Close sidebar"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tighter italic transition-colors">
-                Synapsis
-              </h1>
-            </Link>
-          </div>
+            </div>
 
-          {/* Menü Navigasyonu */}
-          <nav className="flex-1 px-4 space-y-1.5">
-            <SidebarLink
-              href="/dashboard"
-              icon={<LayoutDashboard size={20} />}
-              label="Dashboard"
-              active={pathname === "/dashboard"}
-            />
-            <SidebarLink
-              href="/tasks"
-              icon={<CheckSquare size={20} />}
-              label="Tasks"
-              active={pathname === "/tasks"}
-            />
-            <SidebarLink
-              href="/courses"
-              icon={<BookOpen size={20} />}
-              label="Courses"
-              active={pathname === "/courses"}
-            />
-            <SidebarLink
-              href="/exams"
-              icon={<CalendarIcon size={20} />}
-              label="Calendar"
-              active={pathname === "/exams"}
-            />
-            <SidebarLink
-              href="/notes"
-              icon={<FileText size={20} />}
-              label="Notes"
-              active={pathname === "/notes"}
-            />
-            <SidebarLink
-              href="/assistant"
-              icon={<Sparkles size={20} />}
-              label="Study Buddy"
-              active={pathname === "/assistant"}
-            />
-            <SidebarLink
-              href="/community"
-              icon={<Users size={20} />}
-              label="Community"
-              active={pathname === "/community"}
-            />
-            <SidebarLink
-              href="/messages"
-              icon={<Users size={20} />}
-              label="Messages"
-              active={pathname === "/messages"}
-            />
-          </nav>
+            <nav className={`flex-1 overflow-y-auto px-4 py-5 space-y-1.5 ${isSidebarCollapsed ? 'px-2' : 'px-4'} scroll-smooth`}>
+              <SidebarLink
+                href="/dashboard"
+                icon={<LayoutDashboard size={20} />}
+                label="Dashboard"
+                active={pathname === "/dashboard"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/tasks"
+                icon={<CheckSquare size={20} />}
+                label="Tasks"
+                active={pathname === "/tasks"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/courses"
+                icon={<BookOpen size={20} />}
+                label="Courses"
+                active={pathname === "/courses"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/exams"
+                icon={<CalendarIcon size={20} />}
+                label="Calendar"
+                active={pathname === "/exams"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/notes"
+                icon={<FileText size={20} />}
+                label="Notes"
+                active={pathname === "/notes"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/assistant"
+                icon={<Sparkles size={20} />}
+                label="Study Buddy"
+                active={pathname === "/assistant"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/community"
+                icon={<Users size={20} />}
+                label="Community"
+                active={pathname === "/community"}
+                collapsed={isSidebarCollapsed}
+              />
+              <SidebarLink
+                href="/messages"
+                icon={<Users size={20} />}
+                label="Messages"
+                active={pathname === "/messages"}
+                collapsed={isSidebarCollapsed}
+              />
+            </nav>
 
-          {/* Alt Bölüm: Profil ve Çıkış */}
-          <div className="p-4 border-t border-slate-50 dark:border-slate-800 space-y-3 bg-white/50 dark:bg-transparent">
-            <Link href="/profile" className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 transition-all group">
-              <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-black shadow-md shrink-0 group-hover:scale-105 transition-transform">
-                {session?.user?.name?.[0]?.toUpperCase() || "T"}
-              </div>
-              <div className="flex flex-col overflow-hidden">
-                <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                  {session?.user?.name || "User"}
-                </p>
-                <p className="text-[10px] font-bold text-blue-500 tracking-tighter">Profile Settings</p>
-              </div>
-            </Link>
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white/70 dark:bg-[#0d0d0f]/80">
+              <Link href="/profile" className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all group">
+                <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-black shadow-md shrink-0 group-hover:scale-105 transition-transform">
+                  {session?.user?.name?.[0]?.toUpperCase() || "T"}
+                </div>
+                <div className={`flex flex-col overflow-hidden ${isSidebarCollapsed ? 'hidden' : ''}`}>
+                  <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                    {session?.user?.name || "User"}
+                  </p>
+                  <p className="text-[10px] font-bold text-blue-500 tracking-tighter">Profile Settings</p>
+                </div>
+              </Link>
 
+              <button
+                onClick={() => setShowLogoutModal(true)}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold transition-all group"
+              >
+                <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+                <span className={`text-sm ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Sign Out</span>
+              </button>
+            </div>
+          </aside>
+
+          {isSidebarOpen && (
             <button
-              onClick={() => setShowLogoutModal(true)}
-              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold transition-all group"
-            >
-              <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-              <span className="text-sm">Sign Out</span>
-            </button>
-          </div>
-        </aside>
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 z-40 bg-black/40 md:hidden"
+              aria-label="Close backdrop"
+            />
+          )}
+        </>
       )}
 
       {/* Ana İçerik Alanı */}
@@ -207,11 +257,11 @@ function LayoutContent({ children }: { children: ReactNode }) {
   );
 }
 
-function SidebarLink({ href, icon, label, active }: { href: string, icon: any, label: string, active: boolean }) {
+function SidebarLink({ href, icon, label, active, collapsed }: { href: string, icon: any, label: string, active: boolean, collapsed: boolean }) {
   return (
     <Link href={href} className="block group">
       <div className={`
-        flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 font-bold
+        flex items-center gap-3 ${collapsed ? 'justify-center' : ''} px-4 py-3.5 rounded-2xl transition-all duration-300 font-bold
         ${active
           ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 translate-x-2'
           : 'text-slate-500 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800'}
@@ -219,8 +269,8 @@ function SidebarLink({ href, icon, label, active }: { href: string, icon: any, l
         <span className={`${active ? 'scale-110' : 'group-hover:scale-110'} transition-transform duration-300`}>
           {icon}
         </span>
-        <span className="text-[14px] tracking-tight">{label}</span>
-        {active && (
+        <span className={`text-[14px] tracking-tight ${collapsed ? 'sr-only' : ''}`}>{label}</span>
+        {active && !collapsed && (
           <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]"></div>
         )}
       </div>
