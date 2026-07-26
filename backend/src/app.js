@@ -15,8 +15,24 @@ const { initSocket } = require('./utils/socketManager');
 const app = express();
 
 // 2. CORS ayarlarını yap (Önemli: authRoutes'tan önce olmalı)
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://deploy-synapsis-jioyl8amg-tolgakcks-projects.vercel.app', // Veya kendi Vercel domain adresiniz
+  // İleride özel domain alırsanız buraya ekleyebilirsiniz
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: function (origin, callback) {
+    // Mobil uygulamalar veya curl gibi origin göndermeyen istekler için (gerekirse)
+    if (!origin) return callback(null, true);
+
+    // İstek atan adres izin verilenlerindeyse veya vercel.app ile bitiyorsa izin ver
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
   credentials: true
 }));
 

@@ -19,13 +19,14 @@ const handler = NextAuth({
 
                     console.log("Backend'e istek atılıyor:", authData.email);
 
-                    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    // Örnek NextAuth authorize fonksiyonu içi:
+                    const res = await fetch(`${process.env.API_URL}/api/auth/login`, {
                         method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Accept": "application/json"
-                        },
-                        body: JSON.stringify(authData),
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            email: credentials?.email,
+                            password: credentials?.password,
+                        }),
                     });
 
                     if (!res.ok) {
