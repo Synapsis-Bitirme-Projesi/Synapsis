@@ -362,13 +362,14 @@ ensureRegistrationVerificationTables().catch((err) => {
  */
 const register = async (req, res) => {
   const { email, password, full_name } = req.body;
+  const normalizedEmail = typeof email === 'string' ? email.toLocaleLowerCase().trim() : email;
 
-  if (!email || !password || !full_name) {
+  if (!normalizedEmail || !password || !full_name) {
     return res.status(400).json({ message: 'Lütfen tüm alanları doldurun.' });
   }
 
   try {
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ message: 'Bu e-posta adresi zaten kullanımda.' });
     }

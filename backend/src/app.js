@@ -12,6 +12,7 @@ const examRoutes = require('./routes/exam'); // Sınav rotalarını ekle
 const taskRoutes = require('./routes/task'); // Görev rotalarını ekle
 const notesRoutes = require('./routes/notes'); // Not rotalarını ekle
 const { initSocket } = require('./utils/socketManager');
+const { startTaskReminders } = require('./services/cronService');
 const app = express();
 
 // 2. CORS ayarlarını yap (Önemli: authRoutes'tan önce olmalı)
@@ -85,6 +86,9 @@ io.on('connection', (socket) => {
 });
 
 initSocket(io);
+
+// 🌟 Cron Job'ı (Görev Hatırlatıcıyı) Başlat
+startTaskReminders();
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

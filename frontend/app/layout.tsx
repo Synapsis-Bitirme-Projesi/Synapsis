@@ -94,36 +94,40 @@ function LayoutContent({ children }: { children: ReactNode }) {
           </button>
 
           <aside className={`
-            fixed inset-y-0 left-0 z-50 w-72 max-w-full transform overflow-hidden bg-white shadow-2xl border-r border-slate-200 dark:border-slate-800 dark:bg-[#0d0d0f]
-            transition-transform duration-300 ease-out flex flex-col
+            fixed inset-y-0 left-0 z-50 max-w-full transform bg-white shadow-2xl border-r border-slate-200 dark:border-slate-800 dark:bg-[#0d0d0f]
+            transition-all duration-300 ease-out flex flex-col
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            md:static md:translate-x-0 md:w-72 md:h-screen md:sticky
+            md:static md:translate-x-0 ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'} md:h-screen md:sticky
+            overflow-hidden md:overflow-visible
           `}>
-            <div className="flex items-center justify-between gap-2 p-5 border-b border-slate-100 dark:border-slate-800 md:px-8 md:py-6 bg-white dark:bg-[#0d0d0f]">
-              <Link href="/dashboard" className="flex items-center gap-3 group">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:rotate-12 transition-all duration-300">
+
+            {/* Masaüstü Genişlet/Daralt Butonu (Dışarıya Sabitlendi) */}
+            <button
+              onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+              className="hidden md:flex absolute -right-4 top-8 z-50 h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-[#111113] dark:text-slate-200"
+              aria-label="Toggle sidebar"
+            >
+              {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+
+            <div className={`flex items-center gap-2 p-5 border-b border-slate-100 dark:border-slate-800 md:py-6 bg-white dark:bg-[#0d0d0f] ${isSidebarCollapsed ? 'justify-center md:px-0' : 'justify-between md:px-8'}`}>
+              <Link href="/dashboard" className="flex items-center gap-3 group overflow-hidden">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:rotate-12 transition-all duration-300 shrink-0">
                   <GraduationCap size={24} />
                 </div>
-                <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tighter italic transition-colors">
+                <h1 className={`text-xl font-black text-slate-800 dark:text-white tracking-tighter italic transition-all ${isSidebarCollapsed ? 'md:hidden opacity-0 w-0' : 'opacity-100 w-auto'}`}>
                   Synapsis
                 </h1>
               </Link>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsSidebarCollapsed((prev) => !prev)}
-                  className="hidden md:inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  aria-label="Collapse sidebar"
-                >
-                  {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-                </button>
-                <button
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="md:hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                  aria-label="Close sidebar"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+
+              {/* Sadece Mobil Kapatma Butonu */}
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="md:hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 shrink-0"
+                aria-label="Close sidebar"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             <nav className={`flex-1 overflow-y-auto px-4 py-5 space-y-1.5 ${isSidebarCollapsed ? 'px-2' : 'px-4'} scroll-smooth`}>
@@ -186,11 +190,11 @@ function LayoutContent({ children }: { children: ReactNode }) {
             </nav>
 
             <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white/70 dark:bg-[#0d0d0f]/80">
-              <Link href="/profile" className="flex items-center gap-3 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all group">
+              <Link href="/profile" className={`flex items-center gap-3 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all group ${isSidebarCollapsed ? 'justify-center' : ''}`}>
                 <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white font-black shadow-md shrink-0 group-hover:scale-105 transition-transform">
                   {session?.user?.name?.[0]?.toUpperCase() || "T"}
                 </div>
-                <div className={`flex flex-col overflow-hidden ${isSidebarCollapsed ? 'hidden' : ''}`}>
+                <div className={`flex flex-col overflow-hidden transition-all ${isSidebarCollapsed ? 'hidden opacity-0' : 'opacity-100'}`}>
                   <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
                     {session?.user?.name || "User"}
                   </p>
@@ -200,7 +204,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
 
               <button
                 onClick={() => setShowLogoutModal(true)}
-                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold transition-all group"
+                className={`w-full flex items-center gap-2 p-3 mt-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold transition-all group ${isSidebarCollapsed ? 'justify-center' : 'justify-center'}`}
               >
                 <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
                 <span className={`text-sm ${isSidebarCollapsed ? 'hidden' : 'block'}`}>Sign Out</span>
